@@ -13,10 +13,12 @@ def normalize_name(name):
 
 def load_superfile(path="SuperFile.xlsx"):
     try:
-        # Load the first sheet regardless of name
-        df = pd.read_excel(path, sheet_name=0)
+        # try loading the excel file
+        df = pd.read_excel(path)
 
-        # Ensure FULL NAME exists
+        # show the columns in the console logs
+        print("Columns found:", df.columns.tolist())
+
         if "FULL NAME" not in df.columns:
             print("FULL NAME column not found")
             return None
