@@ -1,0 +1,8 @@
+requests
+pandas
+rapidfuzz
+twilio
+python-dotenv
+openpyxl
+beautifulsoup4
+lxml
