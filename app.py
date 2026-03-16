@@ -1,38 +1,23 @@
 import streamlit as st
-from tweet_parser import extract_player_name
-from superfile_loader import load_superfile, find_player
+from twitter_monitor import search_portal_tweets
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
 st.title("Portal Alert System")
 
-tweet_text = st.text_area(
-    "Paste a sample portal tweet",
-    "A.J. Storr has entered the transfer portal, source tells @GoodmanHoops."
-)
+if st.button("Search Live Portal Tweets"):
+    results = search_portal_tweets()
 
-if st.button("Test Tweet Parser"):
-    player_name = extract_player_name(tweet_text)
-
-    if player_name is None:
-        st.write("Detected player: None")
+    if "error" in results:
+        st.error(results["error"])
     else:
-        st.write("Detected player:", player_name)
+        tweets = results.get("data", [])
 
-        df = load_superfile()
-
-        if df is None:
-            st.error("SuperFile not loaded")
+        if not tweets:
+            st.warning("No tweets found.")
         else:
-            player = find_player(player_name, df)
+            st.success(f"Found {len(tweets)} tweets")
 
-            if player is None:
-                st.warning("Player not found in SuperFile")
-            else:
-                st.success("Player found!")
-
-                st.write("**Full Name:**", player.get("Full Name", "N/A"))
-                st.write("**School:**", player.get("2025-2026 School", "N/A"))
-                st.write("**HDI Rating:**", player.get("RATING", "N/A"))
-                st.write("**Height:**", player.get("Height", "N/A"))
-                st.write("**Age:**", player.get("Age", "N/A"))
+            for tweet in tweets:
+                st.write(tweet["text"])
+                st.write("---")
