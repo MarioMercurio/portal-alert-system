@@ -13,15 +13,17 @@ def normalize_name(name):
 
 def load_superfile(path="SuperFile.xlsx"):
     try:
-        df = pd.read_excel(path)
+        # Skip the first few rows until headers appear
+        df = pd.read_excel(path, header=4)
 
-        # Use the actual player-name column from your workbook
+        print("Columns detected:", df.columns.tolist())
+
         if "FULL NAME" not in df.columns:
-            print("Columns found:", df.columns.tolist())
             print("FULL NAME column not found")
             return None
 
         df["name_clean"] = df["FULL NAME"].apply(normalize_name)
+
         return df
 
     except Exception as e:
@@ -35,6 +37,7 @@ def find_player(player_name, df):
 
     try:
         player_clean = normalize_name(player_name)
+
         matches = df[df["name_clean"].str.contains(player_clean, na=False)]
 
         if len(matches) > 0:
