@@ -1,15 +1,14 @@
 import streamlit as st
-from superfile_loader import load_superfile
+import pandas as pd
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
 st.title("Portal Alert System")
 
-df = load_superfile()
-
-if df is None:
-    st.error("SuperFile not loaded")
-else:
+try:
+    df_raw = pd.read_excel("SuperFile.xlsx", header=None)
     st.success("SuperFile loaded successfully")
-    st.write("Columns found in SuperFile:")
-    st.write(list(df.columns))
+    st.write("First 10 rows of the file:")
+    st.dataframe(df_raw.head(10))
+except Exception as e:
+    st.error(f"Error loading SuperFile: {e}")
