@@ -1,6 +1,6 @@
 import pandas as pd
-import os
 import re
+from pathlib import Path
 
 
 def normalize_name(name):
@@ -14,8 +14,12 @@ def normalize_name(name):
 
 def load_superfile():
     try:
-        base_path = os.path.dirname(__file__)
-        file_path = os.path.join(base_path, "SuperFile.xlsx")
+        # locate the file in the repo
+        file_path = Path(__file__).parent / "SuperFile.xlsx"
+
+        if not file_path.exists():
+            print("SuperFile.xlsx not found at:", file_path)
+            return None
 
         df = pd.read_excel(file_path)
 
