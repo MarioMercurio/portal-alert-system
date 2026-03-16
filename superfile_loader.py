@@ -6,6 +6,7 @@ from pathlib import Path
 def normalize_name(name):
     if name is None:
         return ""
+
     name = str(name).lower()
     name = re.sub(r"[^a-z\s]", "", name)
     name = re.sub(r"\s+", " ", name)
@@ -13,21 +14,22 @@ def normalize_name(name):
 
 
 def load_superfile():
+
     try:
-        # locate the file in the repo
         file_path = Path(__file__).parent / "SuperFile.xlsx"
 
         if not file_path.exists():
-            print("SuperFile.xlsx not found at:", file_path)
+            print("SuperFile.xlsx not found")
             return None
 
         df = pd.read_excel(file_path)
 
-        if "FULL NAME" not in df.columns:
-            print("Columns detected:", df.columns.tolist())
+        if "Full Name" not in df.columns:
+            print("Full Name column not found")
+            print("Columns found:", df.columns.tolist())
             return None
 
-        df["name_clean"] = df["FULL NAME"].apply(normalize_name)
+        df["name_clean"] = df["Full Name"].apply(normalize_name)
 
         return df
 
@@ -37,11 +39,13 @@ def load_superfile():
 
 
 def find_player(player_name, df):
+
     if df is None:
         return None
 
     try:
         player_clean = normalize_name(player_name)
+
         matches = df[df["name_clean"].str.contains(player_clean, na=False)]
 
         if len(matches) > 0:
