@@ -30,4 +30,9 @@ if st.button("Test Tweet Parser"):
                 st.warning("Player not found in SuperFile")
             else:
                 st.success("Player found!")
-                st.write(player)
+
+                st.write("**Full Name:**", player.get("Full Name", "N/A"))
+                st.write("**School:**", player.get("2025-2026 School", "N/A"))
+                st.write("**HDI Rating:**", player.get("RATING", "N/A"))
+                st.write("**Height:**", player.get("Height", "N/A"))
+                st.write("**Age:**", player.get("Age", "N/A"))
