@@ -2,10 +2,11 @@ import re
 
 def extract_player_name(tweet_text):
     """
-    Very simple starter parser.
-    Looks for capitalized first + last name patterns.
+    Detect player names including initials like A.J. Storr
     """
-    pattern = r'\b[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z\.\'-]+)+\b'
+
+    pattern = r'\b(?:[A-Z]\.)?[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z\'\-]+)\b'
+
     matches = re.findall(pattern, tweet_text)
 
     if matches:
