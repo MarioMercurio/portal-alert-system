@@ -6,19 +6,25 @@ def normalize_name(name):
     if name is None:
         return ""
     name = str(name).lower()
-    name = re.sub(r'[^a-z\s]', '', name)   # remove punctuation
-    name = re.sub(r'\s+', ' ', name)       # clean spaces
+    name = re.sub(r'[^a-z\s]', '', name)
+    name = re.sub(r'\s+', ' ', name)
     return name.strip()
 
 
 def load_superfile(path="SuperFile.xlsx"):
     try:
-        df = pd.read_excel(path)
+        # Load the first sheet regardless of name
+        df = pd.read_excel(path, sheet_name=0)
 
-        # create normalized name column
+        # Ensure FULL NAME exists
+        if "FULL NAME" not in df.columns:
+            print("FULL NAME column not found")
+            return None
+
         df["name_clean"] = df["FULL NAME"].apply(normalize_name)
 
         return df
+
     except Exception as e:
         print("Error loading SuperFile:", e)
         return None
