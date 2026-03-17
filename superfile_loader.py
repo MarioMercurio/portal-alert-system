@@ -1,57 +1,84 @@
 import pandas as pd
 import re
-from pathlib import Path
+
+
+SUPERFILE_PATH = "SuperFile.xlsx"
 
 
 def normalize_name(name):
-    if name is None:
+    if not name:
         return ""
 
-    name = str(name).lower()
-    name = re.sub(r"[^a-z\s]", "", name)
-    name = re.sub(r"\s+", " ", name)
-    return name.strip()
+    name = str(name).lower().strip()
+    name = name.replace(".", "")
+    name = name.replace("'", "")
+    name = name.replace("-", " ")
+    name = re.sub(r"\b(jr|sr|ii|iii|iv|v)\b", "", name)
+    name = re.sub(r"[^a-z0-9\s]", "", name)
+    name = re.sub(r"\s+", " ", name).strip()
+    return name
 
 
 def load_superfile():
+    return pd.read_excel(SUPERFILE_PATH)
 
-    try:
-        file_path = Path(__file__).parent / "SuperFile.xlsx"
 
-        if not file_path.exists():
-            print("SuperFile.xlsx not found")
-            return None
-
-        df = pd.read_excel(file_path)
-
-        if "Full Name" not in df.columns:
-            print("Full Name column not found")
-            print("Columns found:", df.columns.tolist())
-            return None
-
-        df["name_clean"] = df["Full Name"].apply(normalize_name)
-
-        return df
-
-    except Exception as e:
-        print("Error loading SuperFile:", e)
+def find_player(df, player_name):
+    if not player_name:
         return None
 
-
-def find_player(player_name, df):
-
-    if df is None:
+    target = normalize_name(player_name)
+    if not target:
         return None
 
-    try:
-        player_clean = normalize_name(player_name)
+    target_parts = target.split()
+    target_last = target_parts[-1] if target_parts else ""
 
-        matches = df[df["name_clean"].str.contains(player_clean, na=False)]
+    # 1) Exact normalized full-name match
+    for _, row in df.iterrows():
+        full_name = str(row.get("Full Name", ""))
+        normalized_full = normalize_name(full_name)
 
-        if len(matches) > 0:
-            return matches.iloc[0]
+        if normalized_full == target:
+            return row
 
-    except Exception as e:
-        print("Error finding player:", e)
+    # 2) Contained match either direction
+    for _, row in df.iterrows():
+        full_name = str(row.get("Full Name", ""))
+        normalized_full = normalize_name(full_name)
+
+        if target in normalized_full or normalized_full in target:
+            return row
+
+    # 3) First + last token match
+    if len(target_parts) >= 2:
+        target_first = target_parts[0]
+
+        for _, row in df.iterrows():
+            full_name = str(row.get("Full Name", ""))
+            normalized_full = normalize_name(full_name)
+            full_parts = normalized_full.split()
+
+            if len(full_parts) >= 2:
+                full_first = full_parts[0]
+                full_last = full_parts[-1]
+
+                if full_first == target_first and full_last == target_last:
+                    return row
+
+    # 4) Last name fallback if unique enough
+    if target_last:
+        last_name_matches = []
+
+        for _, row in df.iterrows():
+            full_name = str(row.get("Full Name", ""))
+            normalized_full = normalize_name(full_name)
+            full_parts = normalized_full.split()
+
+            if full_parts and full_parts[-1] == target_last:
+                last_name_matches.append(row)
+
+        if len(last_name_matches) == 1:
+            return last_name_matches[0]
 
     return None
