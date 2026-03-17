@@ -9,12 +9,10 @@ from portal_rules import is_likely_portal_tweet
 
 SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent"
 
+# MUCH broader query
 PORTAL_QUERY = (
-    '"entered the transfer portal" OR '
-    '"has entered the transfer portal" OR '
-    '"plans to enter the transfer portal" OR '
-    '"is entering the transfer portal" OR '
-    '"in the transfer portal"'
+    'transfer portal OR entered portal OR in portal OR '
+    'entering portal OR hit portal OR testing portal'
 )
 
 
@@ -27,13 +25,14 @@ def search_portal_tweets():
 
     params = {
         "query": PORTAL_QUERY,
-        "max_results": 10,
+        "max_results": 20,
         "tweet.fields": "author_id,created_at"
     }
 
     response = requests.get(SEARCH_URL, headers=headers, params=params)
 
     if response.status_code != 200:
+        print("Twitter API error:", response.text)
         return []
 
     data = response.json()
