@@ -26,8 +26,7 @@ def get_headers():
     }
 
 
-def get_recent_tweets_for_user(user_id, max_results=5):
-
+def get_recent_tweets_for_user(user_id, username, max_results=5):
     url = USER_TWEETS_URL.format(user_id=user_id)
 
     params = {
@@ -38,42 +37,63 @@ def get_recent_tweets_for_user(user_id, max_results=5):
     response = requests.get(url, headers=get_headers(), params=params)
 
     if response.status_code != 200:
-        return []
+        return {
+            "ok": False,
+            "status_code": response.status_code,
+            "error_text": response.text,
+            "tweets": []
+        }
 
     data = response.json()
 
-    return data.get("data", [])
+    return {
+        "ok": True,
+        "status_code": 200,
+        "error_text": "",
+        "tweets": data.get("data", [])
+    }
 
 
 def process_tweets(debug=False):
-
     df = load_superfile()
 
     alerts_sent = []
     debug_log = []
 
     for reporter in REPORTERS:
-
         username = reporter["username"]
         user_id = reporter["id"]
 
-        tweets = get_recent_tweets_for_user(user_id)
+        result = get_recent_tweets_for_user(user_id, username)
+        tweets = result["tweets"]
+
+        if not result["ok"]:
+            debug_log.append({
+                "text": f"Twitter API error for @{username}",
+                "score": 0,
+                "likely": False,
+                "player_name": "",
+                "player_found": False,
+                "reasons": [f"api_error_{result['status_code']}"],
+                "api_status_code": result["status_code"],
+                "api_error_text": result["error_text"]
+            })
+            continue
 
         if not tweets:
-
             debug_log.append({
                 "text": f"No tweets returned for @{username}",
                 "score": 0,
                 "likely": False,
                 "player_name": "",
                 "player_found": False,
-                "reasons": ["no_tweets_returned"]
+                "reasons": ["no_tweets_returned"],
+                "api_status_code": 200,
+                "api_error_text": ""
             })
-
             continue
 
         for tweet in tweets:
-
             text = tweet.get("text", "")
 
             likely, score, reasons = is_likely_portal_tweet(
@@ -91,7 +111,9 @@ def process_tweets(debug=False):
                 "likely": likely,
                 "player_name": player_name,
                 "player_found": player is not None,
-                "reasons": reasons
+                "reasons": reasons,
+                "api_status_code": 200,
+                "api_error_text": ""
             })
 
             if not likely:
