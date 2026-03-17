@@ -15,6 +15,19 @@ def get_superfile():
     return load_superfile()
 
 
+def row_to_dict(player):
+    if player is None:
+        return None
+
+    if hasattr(player, "to_dict"):
+        return player.to_dict()
+
+    if isinstance(player, dict):
+        return player
+
+    return None
+
+
 df = get_superfile()
 
 st.subheader("Paste a sample portal tweet")
@@ -26,28 +39,29 @@ sample_tweet = st.text_area(
     label_visibility="collapsed"
 )
 
-player = None
-player_name = None
-
 if st.button("Test Tweet Parser"):
-    player_name = extract_player_name(sample_tweet)
+    try:
+        player_name = extract_player_name(sample_tweet)
 
-    if not player_name:
-        st.error("No player name detected.")
-    else:
-        st.write(f"Detected player: {player_name}")
-
-        player = find_player(df, player_name)
-
-        if not player:
-            st.warning("Player not found in SuperFile.")
+        if not player_name:
+            st.error("No player name detected.")
         else:
-            st.success("Player found!")
-            st.write(f"**Full Name:** {player.get('Full Name', '')}")
-            st.write(f"**School:** {player.get('2025-2026 School', '')}")
-            st.write(f"**HDI Rating:** {player.get('RATING', '')}")
-            st.write(f"**Height:** {player.get('Height', '')}")
-            st.write(f"**Age:** {player.get('Age', '')}")
+            st.write(f"Detected player: {player_name}")
+
+            player = find_player(df, player_name)
+            player_data = row_to_dict(player)
+
+            if player_data is None:
+                st.warning("Player not found in SuperFile.")
+            else:
+                st.success("Player found!")
+                st.write(f"**Full Name:** {player_data.get('Full Name', '')}")
+                st.write(f"**School:** {player_data.get('2025-2026 School', '')}")
+                st.write(f"**HDI Rating:** {player_data.get('RATING', '')}")
+                st.write(f"**Height:** {player_data.get('Height', '')}")
+                st.write(f"**Age:** {player_data.get('Age', '')}")
+    except Exception as e:
+        st.error(f"Parser failed: {e}")
 
 st.divider()
 
@@ -68,14 +82,15 @@ if st.button("Send Test Email From Tweet"):
             st.error("No player name detected from the tweet.")
         else:
             player = find_player(df, player_name)
+            player_data = row_to_dict(player)
 
-            if not player:
+            if player_data is None:
                 st.error("Player not found in SuperFile.")
             else:
                 subject, body = format_portal_alert(
-                    player_name=player.get("Full Name", player_name),
-                    school=player.get("2025-2026 School", ""),
-                    hdi=player.get("RATING", ""),
+                    player_name=player_data.get("Full Name", player_name),
+                    school=player_data.get("2025-2026 School", ""),
+                    hdi=player_data.get("RATING", ""),
                     reporter="GoodmanHoops",
                     tweet_url="https://x.com/example",
                     report_url="https://portalapp.com/reports/example.png"
