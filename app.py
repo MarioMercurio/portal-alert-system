@@ -5,6 +5,7 @@ from sms_sender import send_sms
 from email_sender import send_email_alert
 from format_alert import format_portal_alert
 from portal_rules import is_likely_portal_tweet
+from tweet_monitor import process_tweets
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
@@ -118,7 +119,10 @@ if st.button("Send Test Email From Tweet"):
         )
 
         if not likely:
-            st.error(f"Tweet score too low to alert. Score: {score}. Reasons: {', '.join(reasons) if reasons else 'None'}")
+            st.error(
+                f"Tweet score too low to alert. Score: {score}. "
+                f"Reasons: {', '.join(reasons) if reasons else 'None'}"
+            )
         else:
             player_name = extract_player_name(sample_tweet)
 
@@ -144,3 +148,24 @@ if st.button("Send Test Email From Tweet"):
                     st.success(f"Tweet-based test email sent! Score: {score}")
     except Exception as e:
         st.error(f"Email failed: {e}")
+
+st.divider()
+
+st.subheader("Live Twitter Monitor")
+
+if st.button("Run Live Monitor"):
+    try:
+        alerts = process_tweets()
+
+        if not alerts:
+            st.info("No qualifying portal alerts found.")
+        else:
+            st.success(f"Live monitor sent {len(alerts)} alert(s).")
+
+            for alert in alerts:
+                st.write(f"**Player:** {alert.get('player', '')}")
+                st.write(f"**Score:** {alert.get('score', '')}")
+                st.write(f"**Tweet:** {alert.get('text', '')}")
+                st.divider()
+    except Exception as e:
+        st.error(f"Live monitor failed: {e}")
