@@ -9,7 +9,6 @@ from portal_rules import is_likely_portal_tweet
 
 SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent"
 
-# MUCH broader query
 PORTAL_QUERY = (
     'transfer portal OR entered portal OR in portal OR '
     'entering portal OR hit portal OR testing portal'
@@ -25,14 +24,16 @@ def search_portal_tweets():
 
     params = {
         "query": PORTAL_QUERY,
-        "max_results": 20,
+        "max_results": 10,
         "tweet.fields": "author_id,created_at"
     }
 
     response = requests.get(SEARCH_URL, headers=headers, params=params)
 
+    # 🔥 SHOW THE ERROR IN STREAMLIT
     if response.status_code != 200:
-        print("Twitter API error:", response.text)
+        st.error(f"Twitter API Error {response.status_code}")
+        st.code(response.text)
         return []
 
     data = response.json()
@@ -45,6 +46,16 @@ def process_tweets(debug=False):
 
     alerts_sent = []
     debug_log = []
+
+    if not tweets:
+        debug_log.append({
+            "text": "NO TWEETS RETURNED",
+            "score": 0,
+            "likely": False,
+            "player_name": "",
+            "player_found": False,
+            "reasons": ["API returned nothing"]
+        })
 
     for tweet in tweets:
         text = tweet.get("text", "")
