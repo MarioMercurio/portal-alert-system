@@ -7,14 +7,15 @@ from email_sender import send_email_alert
 from portal_rules import is_likely_portal_tweet
 
 
+USER_LOOKUP_URL = "https://api.twitter.com/2/users/by/username/{username}"
 USER_TWEETS_URL = "https://api.twitter.com/2/users/{user_id}/tweets"
 
 REPORTERS = [
-    {"username": "GoodmanHoops", "id": "17330792"},
-    {"username": "jeffborzello", "id": "40235531"},
-    {"username": "TiptonEdits", "id": "145602194"},
-    {"username": "VerbalCommits", "id": "362586870"},
-    {"username": "On3sports", "id": "149871064"},
+    "GoodmanHoops",
+    "jeffborzello",
+    "TiptonEdits",
+    "VerbalCommits",
+    "On3sports",
 ]
 
 
@@ -24,7 +25,30 @@ def get_headers():
     }
 
 
-def get_recent_tweets_for_user(user_id, max_results=25):
+def lookup_user(username):
+    url = USER_LOOKUP_URL.format(username=username)
+    response = requests.get(url, headers=get_headers())
+
+    if response.status_code != 200:
+        return {
+            "ok": False,
+            "status_code": response.status_code,
+            "error_text": response.text,
+            "user_id": None,
+        }
+
+    data = response.json()
+    user_id = data.get("data", {}).get("id")
+
+    return {
+        "ok": True,
+        "status_code": 200,
+        "error_text": "",
+        "user_id": user_id,
+    }
+
+
+def get_recent_tweets_for_user(user_id, max_results=10):
     url = USER_TWEETS_URL.format(user_id=user_id)
 
     params = {
@@ -58,38 +82,51 @@ def process_tweets(debug=False):
     alerts_sent = []
     debug_log = []
 
-    for reporter in REPORTERS:
-        username = reporter["username"]
-        user_id = reporter["id"]
+    for username in REPORTERS:
+        lookup = lookup_user(username)
 
-        result = get_recent_tweets_for_user(user_id, max_results=25)
-        tweets = result["tweets"]
-
-        if not result["ok"]:
+        if not lookup["ok"]:
             debug_log.append({
-                "text": f"Twitter API error for @{username}",
+                "text": f"User lookup failed for @{username}",
                 "score": 0,
                 "likely": False,
                 "player_name": "",
                 "player_found": False,
-                "reasons": [f"api_error_{result['status_code']}"],
-                "api_status_code": result["status_code"],
-                "api_error_text": result["error_text"]
+                "reasons": [f"lookup_api_error_{lookup['status_code']}"],
+                "api_status_code": lookup["status_code"],
+                "api_error_text": lookup["error_text"]
             })
             continue
 
-        if not tweets:
+        user_id = lookup["user_id"]
+
+        debug_log.append({
+            "text": f"Lookup OK for @{username} → user_id={user_id}",
+            "score": 0,
+            "likely": False,
+            "player_name": "",
+            "player_found": False,
+            "reasons": ["lookup_ok"],
+            "api_status_code": 200,
+            "api_error_text": ""
+        })
+
+        timeline = get_recent_tweets_for_user(user_id, max_results=10)
+
+        if not timeline["ok"]:
             debug_log.append({
-                "text": f"No tweets returned for @{username}",
+                "text": f"Timeline failed for @{username}",
                 "score": 0,
                 "likely": False,
                 "player_name": "",
                 "player_found": False,
-                "reasons": ["no_tweets_returned"],
-                "api_status_code": 200,
-                "api_error_text": ""
+                "reasons": [f"timeline_api_error_{timeline['status_code']}"],
+                "api_status_code": timeline["status_code"],
+                "api_error_text": timeline["error_text"]
             })
             continue
+
+        tweets = timeline["tweets"]
 
         debug_log.append({
             "text": f"Fetched {len(tweets)} raw tweets for @{username}",
@@ -97,34 +134,19 @@ def process_tweets(debug=False):
             "likely": False,
             "player_name": "",
             "player_found": False,
-            "reasons": ["raw_fetch_ok"],
+            "reasons": ["timeline_ok"],
             "api_status_code": 200,
             "api_error_text": ""
         })
+
+        if not tweets:
+            continue
 
         for tweet in tweets:
             text = tweet.get("text", "")
             lang = tweet.get("lang", "")
 
-            if not text:
-                continue
-
-            reasons = []
-            filtered_out = False
-
-            if text.startswith("RT "):
-                reasons.append("filtered_retweet")
-                filtered_out = True
-
-            if lang and lang != "en":
-                reasons.append(f"filtered_lang_{lang}")
-                filtered_out = True
-
-            if "transfer portal" not in text.lower() and "portal" not in text.lower():
-                reasons.append("filtered_no_portal_keyword")
-                filtered_out = True
-
-            likely, score, score_reasons = is_likely_portal_tweet(
+            likely, score, reasons = is_likely_portal_tweet(
                 tweet_text=text,
                 author_username=username,
                 author_name=username
@@ -133,20 +155,18 @@ def process_tweets(debug=False):
             player_name = extract_player_name(text)
             player = find_player(df, player_name) if player_name else None
 
-            all_reasons = reasons + score_reasons
-
             debug_log.append({
                 "text": text,
                 "score": score,
-                "likely": likely and not filtered_out,
+                "likely": likely,
                 "player_name": player_name,
                 "player_found": player is not None,
-                "reasons": all_reasons if all_reasons else ["passed_basic_checks"],
+                "reasons": reasons + ([f"lang_{lang}"] if lang else []),
                 "api_status_code": 200,
                 "api_error_text": ""
             })
 
-            if filtered_out:
+            if lang != "en":
                 continue
 
             if not likely:
