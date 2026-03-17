@@ -26,6 +26,9 @@ sample_tweet = st.text_area(
     label_visibility="collapsed"
 )
 
+player = None
+player_name = None
+
 if st.button("Test Tweet Parser"):
     player_name = extract_player_name(sample_tweet)
 
@@ -57,18 +60,28 @@ if st.button("Send Test SMS"):
     except Exception as e:
         st.error(f"SMS failed: {e}")
 
-if st.button("Send Test Email"):
+if st.button("Send Test Email From Tweet"):
     try:
-        subject, body = format_portal_alert(
-            player_name="A.J. Storr",
-            school="Wisconsin",
-            hdi=81,
-            reporter="GoodmanHoops",
-            tweet_url="https://x.com/example",
-            report_url="https://portalapp.com/reports/aj_storr.png"
-        )
+        player_name = extract_player_name(sample_tweet)
 
-        send_email_alert(subject=subject, body=body)
-        st.success("Test email sent!")
+        if not player_name:
+            st.error("No player name detected from the tweet.")
+        else:
+            player = find_player(df, player_name)
+
+            if not player:
+                st.error("Player not found in SuperFile.")
+            else:
+                subject, body = format_portal_alert(
+                    player_name=player.get("Full Name", player_name),
+                    school=player.get("2025-2026 School", ""),
+                    hdi=player.get("RATING", ""),
+                    reporter="GoodmanHoops",
+                    tweet_url="https://x.com/example",
+                    report_url="https://portalapp.com/reports/example.png"
+                )
+
+                send_email_alert(subject=subject, body=body)
+                st.success("Tweet-based test email sent!")
     except Exception as e:
         st.error(f"Email failed: {e}")
