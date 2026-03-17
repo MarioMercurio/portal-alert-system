@@ -4,6 +4,7 @@ from superfile_loader import load_superfile, find_player
 from sms_sender import send_sms
 from email_sender import send_email_alert
 from format_alert import format_portal_alert
+from portal_rules import is_likely_portal_tweet
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
@@ -38,6 +39,39 @@ sample_tweet = st.text_area(
     height=120,
     label_visibility="collapsed"
 )
+
+author_username = st.text_input(
+    "Reporter username",
+    value="GoodmanHoops"
+)
+
+author_name = st.text_input(
+    "Reporter display name",
+    value="Jeff Goodman"
+)
+
+st.divider()
+
+st.subheader("Portal Tweet Score")
+
+if st.button("Score Tweet"):
+    try:
+        likely, score, reasons = is_likely_portal_tweet(
+            tweet_text=sample_tweet,
+            author_username=author_username,
+            author_name=author_name,
+            min_score=4
+        )
+
+        st.write(f"**Likely portal tweet:** {likely}")
+        st.write(f"**Score:** {score}")
+        st.write(f"**Reasons:** {', '.join(reasons) if reasons else 'None'}")
+    except Exception as e:
+        st.error(f"Scoring failed: {e}")
+
+st.divider()
+
+st.subheader("Tweet Parser + Player Match")
 
 if st.button("Test Tweet Parser"):
     try:
@@ -76,27 +110,37 @@ if st.button("Send Test SMS"):
 
 if st.button("Send Test Email From Tweet"):
     try:
-        player_name = extract_player_name(sample_tweet)
+        likely, score, reasons = is_likely_portal_tweet(
+            tweet_text=sample_tweet,
+            author_username=author_username,
+            author_name=author_name,
+            min_score=4
+        )
 
-        if not player_name:
-            st.error("No player name detected from the tweet.")
+        if not likely:
+            st.error(f"Tweet score too low to alert. Score: {score}. Reasons: {', '.join(reasons) if reasons else 'None'}")
         else:
-            player = find_player(df, player_name)
-            player_data = row_to_dict(player)
+            player_name = extract_player_name(sample_tweet)
 
-            if player_data is None:
-                st.error("Player not found in SuperFile.")
+            if not player_name:
+                st.error("No player name detected from the tweet.")
             else:
-                subject, body = format_portal_alert(
-                    player_name=player_data.get("Full Name", player_name),
-                    school=player_data.get("2025-2026 School", ""),
-                    hdi=player_data.get("RATING", ""),
-                    reporter="GoodmanHoops",
-                    tweet_url="https://x.com/example",
-                    report_url="https://portalapp.com/reports/example.png"
-                )
+                player = find_player(df, player_name)
+                player_data = row_to_dict(player)
 
-                send_email_alert(subject=subject, body=body)
-                st.success("Tweet-based test email sent!")
+                if player_data is None:
+                    st.error("Player not found in SuperFile.")
+                else:
+                    subject, body = format_portal_alert(
+                        player_name=player_data.get("Full Name", player_name),
+                        school=player_data.get("2025-2026 School", ""),
+                        hdi=player_data.get("RATING", ""),
+                        reporter=author_username,
+                        tweet_url="https://x.com/example",
+                        report_url="https://portalapp.com/reports/example.png"
+                    )
+
+                    send_email_alert(subject=subject, body=body)
+                    st.success(f"Tweet-based test email sent! Score: {score}")
     except Exception as e:
         st.error(f"Email failed: {e}")
