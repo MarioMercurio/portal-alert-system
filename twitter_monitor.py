@@ -5,6 +5,7 @@ from superfile_loader import load_superfile, find_player
 from format_alert import format_portal_alert
 from email_sender import send_email_alert
 from portal_rules import is_likely_portal_tweet
+from deduper import load_seen, is_new_tweet, mark_tweet_seen
 
 
 USER_LOOKUP_URL = "https://api.twitter.com/2/users/by/username/{username}"
@@ -78,6 +79,7 @@ def get_recent_tweets_for_user(user_id, max_results=10):
 
 def process_tweets(debug=False):
     df = load_superfile()
+    seen_ids = load_seen()
 
     alerts_sent = []
     debug_log = []
@@ -143,8 +145,25 @@ def process_tweets(debug=False):
             continue
 
         for tweet in tweets:
+            tweet_id = str(tweet.get("id", ""))
             text = tweet.get("text", "")
             lang = tweet.get("lang", "")
+
+            if not tweet_id:
+                continue
+
+            if not is_new_tweet(tweet_id, seen_ids):
+                debug_log.append({
+                    "text": text,
+                    "score": 0,
+                    "likely": False,
+                    "player_name": "",
+                    "player_found": False,
+                    "reasons": ["duplicate_already_seen"],
+                    "api_status_code": 200,
+                    "api_error_text": ""
+                })
+                continue
 
             likely, score, reasons = is_likely_portal_tweet(
                 tweet_text=text,
@@ -185,11 +204,12 @@ def process_tweets(debug=False):
                 school=player_data.get("2025-2026 School", ""),
                 hdi=player_data.get("RATING", ""),
                 reporter=username,
-                tweet_url=f"https://x.com/{username}/status/{tweet.get('id')}",
+                tweet_url=f"https://x.com/{username}/status/{tweet_id}",
                 report_url="https://portalapp.com/reports/example.png"
             )
 
             send_email_alert(subject, body)
+            mark_tweet_seen(tweet_id, seen_ids)
 
             alerts_sent.append({
                 "player": player_data.get("Full Name", player_name),
