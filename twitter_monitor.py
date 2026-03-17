@@ -40,37 +40,44 @@ def search_portal_tweets():
     return data.get("data", [])
 
 
-def process_tweets():
+def process_tweets(debug=False):
     df = load_superfile()
     tweets = search_portal_tweets()
 
     alerts_sent = []
+    debug_log = []
 
     for tweet in tweets:
         text = tweet.get("text", "")
 
-        # Score the tweet
         likely, score, reasons = is_likely_portal_tweet(
             tweet_text=text,
-            author_username=""  # we don't have username yet
+            author_username=""
         )
+
+        player_name = extract_player_name(text)
+        player = find_player(df, player_name) if player_name else None
+
+        debug_log.append({
+            "text": text,
+            "score": score,
+            "likely": likely,
+            "player_name": player_name,
+            "player_found": player is not None,
+            "reasons": reasons
+        })
 
         if not likely:
             continue
 
-        # Extract player
-        player_name = extract_player_name(text)
         if not player_name:
             continue
 
-        # Match player
-        player = find_player(df, player_name)
         if player is None:
             continue
 
         player_data = player.to_dict()
 
-        # Format alert
         subject, body = format_portal_alert(
             player_name=player_data.get("Full Name", player_name),
             school=player_data.get("2025-2026 School", ""),
@@ -80,7 +87,6 @@ def process_tweets():
             report_url="https://portalapp.com/reports/example.png"
         )
 
-        # Send email
         send_email_alert(subject, body)
 
         alerts_sent.append({
@@ -88,5 +94,8 @@ def process_tweets():
             "score": score,
             "text": text
         })
+
+    if debug:
+        return alerts_sent, debug_log
 
     return alerts_sent
