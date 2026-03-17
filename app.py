@@ -3,14 +3,17 @@ from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
 from sms_sender import send_sms
 from email_sender import send_email_alert
+from format_alert import format_portal_alert
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
 st.title("Portal Alert System")
 
+
 @st.cache_data
 def get_superfile():
     return load_superfile()
+
 
 df = get_superfile()
 
@@ -37,7 +40,6 @@ if st.button("Test Tweet Parser"):
             st.warning("Player not found in SuperFile.")
         else:
             st.success("Player found!")
-
             st.write(f"**Full Name:** {player.get('Full Name', '')}")
             st.write(f"**School:** {player.get('2025-2026 School', '')}")
             st.write(f"**HDI Rating:** {player.get('RATING', '')}")
@@ -57,10 +59,16 @@ if st.button("Send Test SMS"):
 
 if st.button("Send Test Email"):
     try:
-        send_email_alert(
-            subject="Portal Alert System test 🚨",
-            body="This is a test email from your Portal Alert System."
+        subject, body = format_portal_alert(
+            player_name="A.J. Storr",
+            school="Wisconsin",
+            hdi=81,
+            reporter="GoodmanHoops",
+            tweet_url="https://x.com/example",
+            report_url="https://portalapp.com/reports/aj_storr.png"
         )
+
+        send_email_alert(subject=subject, body=body)
         st.success("Test email sent!")
     except Exception as e:
         st.error(f"Email failed: {e}")
