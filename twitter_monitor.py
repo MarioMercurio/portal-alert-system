@@ -7,33 +7,47 @@ from email_sender import send_email_alert
 from portal_rules import is_likely_portal_tweet
 
 
-SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent"
+USER_LOOKUP_URL = "https://api.twitter.com/2/users/by/username/{username}"
+USER_TWEETS_URL = "https://api.twitter.com/2/users/{user_id}/tweets"
 
-PORTAL_QUERY = (
-    'transfer portal OR entered portal OR in portal OR '
-    'entering portal OR hit portal OR testing portal'
-)
+REPORTERS = [
+    "GoodmanHoops",
+    "jeffborzello",
+    "TiptonEdits",
+    "VerbalCommits",
+    "On3sports",
+]
 
 
-def search_portal_tweets():
+def get_headers():
     bearer_token = st.secrets["X_BEARER_TOKEN"]
-
-    headers = {
+    return {
         "Authorization": f"Bearer {bearer_token}"
     }
 
+
+def get_user_id(username):
+    url = USER_LOOKUP_URL.format(username=username)
+    response = requests.get(url, headers=get_headers())
+
+    if response.status_code != 200:
+        return None
+
+    data = response.json()
+    return data.get("data", {}).get("id")
+
+
+def get_recent_tweets_for_user(user_id, max_results=5):
+    url = USER_TWEETS_URL.format(user_id=user_id)
+
     params = {
-        "query": PORTAL_QUERY,
-        "max_results": 10,
-        "tweet.fields": "author_id,created_at"
+        "max_results": max_results,
+        "tweet.fields": "created_at"
     }
 
-    response = requests.get(SEARCH_URL, headers=headers, params=params)
+    response = requests.get(url, headers=get_headers(), params=params)
 
-    # 🔥 SHOW THE ERROR IN STREAMLIT
     if response.status_code != 200:
-        st.error(f"Twitter API Error {response.status_code}")
-        st.code(response.text)
         return []
 
     data = response.json()
@@ -42,68 +56,85 @@ def search_portal_tweets():
 
 def process_tweets(debug=False):
     df = load_superfile()
-    tweets = search_portal_tweets()
 
     alerts_sent = []
     debug_log = []
 
-    if not tweets:
-        debug_log.append({
-            "text": "NO TWEETS RETURNED",
-            "score": 0,
-            "likely": False,
-            "player_name": "",
-            "player_found": False,
-            "reasons": ["API returned nothing"]
-        })
+    for username in REPORTERS:
+        user_id = get_user_id(username)
 
-    for tweet in tweets:
-        text = tweet.get("text", "")
-
-        likely, score, reasons = is_likely_portal_tweet(
-            tweet_text=text,
-            author_username=""
-        )
-
-        player_name = extract_player_name(text)
-        player = find_player(df, player_name) if player_name else None
-
-        debug_log.append({
-            "text": text,
-            "score": score,
-            "likely": likely,
-            "player_name": player_name,
-            "player_found": player is not None,
-            "reasons": reasons
-        })
-
-        if not likely:
+        if not user_id:
+            debug_log.append({
+                "text": f"Could not get user ID for @{username}",
+                "score": 0,
+                "likely": False,
+                "player_name": "",
+                "player_found": False,
+                "reasons": ["user_lookup_failed"]
+            })
             continue
 
-        if not player_name:
+        tweets = get_recent_tweets_for_user(user_id, max_results=5)
+
+        if not tweets:
+            debug_log.append({
+                "text": f"No tweets returned for @{username}",
+                "score": 0,
+                "likely": False,
+                "player_name": "",
+                "player_found": False,
+                "reasons": ["no_tweets_returned"]
+            })
             continue
 
-        if player is None:
-            continue
+        for tweet in tweets:
+            text = tweet.get("text", "")
 
-        player_data = player.to_dict()
+            likely, score, reasons = is_likely_portal_tweet(
+                tweet_text=text,
+                author_username=username,
+                author_name=username
+            )
 
-        subject, body = format_portal_alert(
-            player_name=player_data.get("Full Name", player_name),
-            school=player_data.get("2025-2026 School", ""),
-            hdi=player_data.get("RATING", ""),
-            reporter="Unknown",
-            tweet_url=f"https://x.com/i/web/status/{tweet.get('id')}",
-            report_url="https://portalapp.com/reports/example.png"
-        )
+            player_name = extract_player_name(text)
+            player = find_player(df, player_name) if player_name else None
 
-        send_email_alert(subject, body)
+            debug_log.append({
+                "text": text,
+                "score": score,
+                "likely": likely,
+                "player_name": player_name,
+                "player_found": player is not None,
+                "reasons": reasons
+            })
 
-        alerts_sent.append({
-            "player": player_data.get("Full Name", player_name),
-            "score": score,
-            "text": text
-        })
+            if not likely:
+                continue
+
+            if not player_name:
+                continue
+
+            if player is None:
+                continue
+
+            player_data = player.to_dict()
+
+            subject, body = format_portal_alert(
+                player_name=player_data.get("Full Name", player_name),
+                school=player_data.get("2025-2026 School", ""),
+                hdi=player_data.get("RATING", ""),
+                reporter=username,
+                tweet_url=f"https://x.com/{username}/status/{tweet.get('id')}",
+                report_url="https://portalapp.com/reports/example.png"
+            )
+
+            send_email_alert(subject, body)
+
+            alerts_sent.append({
+                "player": player_data.get("Full Name", player_name),
+                "score": score,
+                "text": text
+            })
 
     if debug:
         return alerts_sent, debug_log
