@@ -7,15 +7,15 @@ from email_sender import send_email_alert
 from portal_rules import is_likely_portal_tweet
 
 
-USER_LOOKUP_URL = "https://api.twitter.com/2/users/by/username/{username}"
 USER_TWEETS_URL = "https://api.twitter.com/2/users/{user_id}/tweets"
 
+
 REPORTERS = [
-    "GoodmanHoops",
-    "jeffborzello",
-    "TiptonEdits",
-    "VerbalCommits",
-    "On3sports",
+    {"username": "GoodmanHoops", "id": "17330792"},
+    {"username": "jeffborzello", "id": "40235531"},
+    {"username": "TiptonEdits", "id": "145602194"},
+    {"username": "VerbalCommits", "id": "362586870"},
+    {"username": "On3sports", "id": "149871064"},
 ]
 
 
@@ -26,18 +26,8 @@ def get_headers():
     }
 
 
-def get_user_id(username):
-    url = USER_LOOKUP_URL.format(username=username)
-    response = requests.get(url, headers=get_headers())
-
-    if response.status_code != 200:
-        return None
-
-    data = response.json()
-    return data.get("data", {}).get("id")
-
-
 def get_recent_tweets_for_user(user_id, max_results=5):
+
     url = USER_TWEETS_URL.format(user_id=user_id)
 
     params = {
@@ -51,32 +41,26 @@ def get_recent_tweets_for_user(user_id, max_results=5):
         return []
 
     data = response.json()
+
     return data.get("data", [])
 
 
 def process_tweets(debug=False):
+
     df = load_superfile()
 
     alerts_sent = []
     debug_log = []
 
-    for username in REPORTERS:
-        user_id = get_user_id(username)
+    for reporter in REPORTERS:
 
-        if not user_id:
-            debug_log.append({
-                "text": f"Could not get user ID for @{username}",
-                "score": 0,
-                "likely": False,
-                "player_name": "",
-                "player_found": False,
-                "reasons": ["user_lookup_failed"]
-            })
-            continue
+        username = reporter["username"]
+        user_id = reporter["id"]
 
-        tweets = get_recent_tweets_for_user(user_id, max_results=5)
+        tweets = get_recent_tweets_for_user(user_id)
 
         if not tweets:
+
             debug_log.append({
                 "text": f"No tweets returned for @{username}",
                 "score": 0,
@@ -85,9 +69,11 @@ def process_tweets(debug=False):
                 "player_found": False,
                 "reasons": ["no_tweets_returned"]
             })
+
             continue
 
         for tweet in tweets:
+
             text = tweet.get("text", "")
 
             likely, score, reasons = is_likely_portal_tweet(
