@@ -2,6 +2,7 @@ import streamlit as st
 from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
 from sms_sender import send_sms
+from email_sender import send_email_alert
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
@@ -45,7 +46,7 @@ if st.button("Test Tweet Parser"):
 
 st.divider()
 
-st.subheader("SMS Test")
+st.subheader("Alert Tests")
 
 if st.button("Send Test SMS"):
     try:
@@ -53,3 +54,13 @@ if st.button("Send Test SMS"):
         st.success(f"SMS sent! SID: {sid}")
     except Exception as e:
         st.error(f"SMS failed: {e}")
+
+if st.button("Send Test Email"):
+    try:
+        send_email_alert(
+            subject="Portal Alert System test 🚨",
+            body="This is a test email from your Portal Alert System."
+        )
+        st.success("Test email sent!")
+    except Exception as e:
+        st.error(f"Email failed: {e}")
