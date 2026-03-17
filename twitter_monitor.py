@@ -20,18 +20,18 @@ REPORTERS = [
 
 
 def get_headers():
-    bearer_token = st.secrets["X_BEARER_TOKEN"]
     return {
-        "Authorization": f"Bearer {bearer_token}"
+        "Authorization": f"Bearer {st.secrets['X_BEARER_TOKEN']}"
     }
 
 
-def get_recent_tweets_for_user(user_id, username, max_results=5):
+def get_recent_tweets_for_user(user_id):
     url = USER_TWEETS_URL.format(user_id=user_id)
 
     params = {
-        "max_results": max_results,
-        "tweet.fields": "created_at"
+        "max_results": 10,
+        "exclude": "retweets,replies",   # 🔥 KEY FIX
+        "tweet.fields": "created_at,lang"
     }
 
     response = requests.get(url, headers=get_headers(), params=params)
@@ -55,16 +55,18 @@ def get_recent_tweets_for_user(user_id, username, max_results=5):
 
 
 def process_tweets(debug=False):
+
     df = load_superfile()
 
     alerts_sent = []
     debug_log = []
 
     for reporter in REPORTERS:
+
         username = reporter["username"]
         user_id = reporter["id"]
 
-        result = get_recent_tweets_for_user(user_id, username)
+        result = get_recent_tweets_for_user(user_id)
         tweets = result["tweets"]
 
         if not result["ok"]:
@@ -87,14 +89,22 @@ def process_tweets(debug=False):
                 "likely": False,
                 "player_name": "",
                 "player_found": False,
-                "reasons": ["no_tweets_returned"],
-                "api_status_code": 200,
-                "api_error_text": ""
+                "reasons": ["no_tweets_returned"]
             })
             continue
 
         for tweet in tweets:
+
             text = tweet.get("text", "")
+            lang = tweet.get("lang", "en")
+
+            # 🔥 FILTER NON-ENGLISH
+            if lang != "en":
+                continue
+
+            # 🔥 HARD FILTER (extra safety)
+            if "transfer portal" not in text.lower():
+                continue
 
             likely, score, reasons = is_likely_portal_tweet(
                 tweet_text=text,
@@ -111,18 +121,10 @@ def process_tweets(debug=False):
                 "likely": likely,
                 "player_name": player_name,
                 "player_found": player is not None,
-                "reasons": reasons,
-                "api_status_code": 200,
-                "api_error_text": ""
+                "reasons": reasons
             })
 
-            if not likely:
-                continue
-
-            if not player_name:
-                continue
-
-            if player is None:
+            if not likely or not player_name or player is None:
                 continue
 
             player_data = player.to_dict()
