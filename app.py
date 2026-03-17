@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
 from sms_sender import send_sms
@@ -32,6 +33,9 @@ def row_to_dict(player):
 
 df = get_superfile()
 
+# -----------------------------
+# SAMPLE TWEET INPUT
+# -----------------------------
 st.subheader("Paste a sample portal tweet")
 
 sample_tweet = st.text_area(
@@ -53,6 +57,9 @@ author_name = st.text_input(
 
 st.divider()
 
+# -----------------------------
+# SCORING
+# -----------------------------
 st.subheader("Portal Tweet Score")
 
 if st.button("Score Tweet"):
@@ -72,6 +79,9 @@ if st.button("Score Tweet"):
 
 st.divider()
 
+# -----------------------------
+# PARSER + MATCH
+# -----------------------------
 st.subheader("Tweet Parser + Player Match")
 
 if st.button("Test Tweet Parser"):
@@ -100,6 +110,9 @@ if st.button("Test Tweet Parser"):
 
 st.divider()
 
+# -----------------------------
+# ALERT TESTS
+# -----------------------------
 st.subheader("Alert Tests")
 
 if st.button("Send Test SMS"):
@@ -120,14 +133,14 @@ if st.button("Send Test Email From Tweet"):
 
         if not likely:
             st.error(
-                f"Tweet score too low to alert. Score: {score}. "
+                f"Tweet score too low. Score: {score}. "
                 f"Reasons: {', '.join(reasons) if reasons else 'None'}"
             )
         else:
             player_name = extract_player_name(sample_tweet)
 
             if not player_name:
-                st.error("No player name detected from the tweet.")
+                st.error("No player name detected.")
             else:
                 player = find_player(df, player_name)
                 player_data = row_to_dict(player)
@@ -144,54 +157,36 @@ if st.button("Send Test Email From Tweet"):
                         report_url="https://portalapp.com/reports/example.png"
                     )
 
-                    send_email_alert(subject=subject, body=body)
-                    st.success(f"Tweet-based test email sent! Score: {score}")
+                    send_email_alert(subject, body)
+                    st.success(f"Email sent! Score: {score}")
+
     except Exception as e:
         st.error(f"Email failed: {e}")
 
 st.divider()
 
+# -----------------------------
+# AUTO LIVE MONITOR (5 MIN)
+# -----------------------------
 st.subheader("Live Twitter Monitor")
 
-if st.button("Run Live Monitor"):
-    try:
-        alerts, debug_log = process_tweets(debug=True)
+AUTO_MODE = st.checkbox("Enable Auto Monitor (runs every 5 minutes)", value=True)
 
-        if not alerts:
-            st.info("No qualifying portal alerts found.")
-        else:
-            st.success(f"Live monitor sent {len(alerts)} alert(s).")
+INTERVAL_SECONDS = 300  # 5 minutes
 
-            for alert in alerts:
-                st.write(f"**Player:** {alert.get('player', '')}")
-                st.write(f"**Score:** {alert.get('score', '')}")
-                st.write(f"**Tweet:** {alert.get('text', '')}")
-                st.divider()
+if AUTO_MODE:
+    st.success("Auto monitor is running every 5 minutes...")
 
-        st.subheader("Debug Log")
+    while True:
+        try:
+            alerts, debug_log = process_tweets(debug=False)
 
-        if not debug_log:
-            st.write("No debug data returned.")
-        else:
-            for item in debug_log:
-                st.write(f"**Tweet:** {item.get('text', '')}")
-                st.write(f"**Score:** {item.get('score', '')} | **Likely:** {item.get('likely', False)}")
-                st.write(f"**Player Detected:** {item.get('player_name', '')}")
-                st.write(f"**Player Found:** {item.get('player_found', False)}")
+            if alerts:
+                st.success(f"Sent {len(alerts)} alert(s)")
+            else:
+                st.info("No new alerts")
 
-                reasons = item.get("reasons", [])
-                st.write(f"**Reasons:** {', '.join(reasons) if reasons else 'None'}")
+        except Exception as e:
+            st.error(f"Monitor error: {e}")
 
-                api_status_code = item.get("api_status_code", "")
-                api_error_text = item.get("api_error_text", "")
-
-                if api_status_code:
-                    st.write(f"**API Status Code:** {api_status_code}")
-
-                if api_error_text:
-                    st.code(api_error_text)
-
-                st.divider()
-
-    except Exception as e:
-        st.error(f"Live monitor failed: {e}")
+        time.sleep(INTERVAL_SECONDS)
