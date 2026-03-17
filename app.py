@@ -171,15 +171,26 @@ if st.button("Run Live Monitor"):
         st.subheader("Debug Log")
 
         if not debug_log:
-            st.write("No tweets returned from Twitter.")
+            st.write("No debug data returned.")
         else:
             for item in debug_log:
                 st.write(f"**Tweet:** {item.get('text', '')}")
                 st.write(f"**Score:** {item.get('score', '')} | **Likely:** {item.get('likely', False)}")
                 st.write(f"**Player Detected:** {item.get('player_name', '')}")
                 st.write(f"**Player Found:** {item.get('player_found', False)}")
+
                 reasons = item.get("reasons", [])
                 st.write(f"**Reasons:** {', '.join(reasons) if reasons else 'None'}")
+
+                api_status_code = item.get("api_status_code", "")
+                api_error_text = item.get("api_error_text", "")
+
+                if api_status_code:
+                    st.write(f"**API Status Code:** {api_status_code}")
+
+                if api_error_text:
+                    st.code(api_error_text)
+
                 st.divider()
 
     except Exception as e:
