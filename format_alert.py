@@ -1,21 +1,30 @@
-from hdi_utils import get_hdi_icon
+def get_hdi_emoji(hdi_value):
+    try:
+        hdi = float(hdi_value)
+    except Exception:
+        return ""
 
-def format_entry_alert(player, school, hdi, reporter, tweet_link, report_link):
-    
-    icon = get_hdi_icon(hdi)
+    if hdi >= 90:
+        return "💰"
+    if hdi >= 85:
+        return "🧨"
+    if hdi >= 80:
+        return "🔥"
+    return ""
 
-    message = f"""
-🚨 Portal Entry
 
-{player} – {school}
-HDI – {hdi} {icon}
+def format_portal_alert(player_name, school, hdi, reporter, tweet_url, report_url):
+    emoji = get_hdi_emoji(hdi)
 
-Reported by: @{reporter}
+    subject = f"🚨 Portal Entry: {player_name}"
 
-Tweet:
-{tweet_link}
+    body = (
+        f"🚨 Portal Entry\n\n"
+        f"{player_name} – {school}\n"
+        f"HDI: {hdi} {emoji}\n\n"
+        f"Reported by: @{reporter}\n\n"
+        f"Tweet:\n{tweet_url}\n\n"
+        f"Report:\n{report_url}"
+    )
 
-Report:
-{report_link}
-"""
-    return message
+    return subject, body
