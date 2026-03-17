@@ -5,7 +5,7 @@ from sms_sender import send_sms
 from email_sender import send_email_alert
 from format_alert import format_portal_alert
 from portal_rules import is_likely_portal_tweet
-from tweet_monitor import process_tweets
+from twitter_monitor import process_tweets
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
