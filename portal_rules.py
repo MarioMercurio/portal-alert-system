@@ -5,9 +5,9 @@ TRUSTED_REPORTERS = {
     "247sportsportal": 3,
     "verbalcommits": 3,
     "mzenitz": 2,
-    "247hshoops": 2,
     "on3sports": 2,
     "on3recruits": 2,
+    "247hshoops": 2,
 }
 
 STRONG_PORTAL_PHRASES = [
@@ -17,20 +17,21 @@ STRONG_PORTAL_PHRASES = [
     "plans to enter the transfer portal",
     "intends to enter the transfer portal",
     "will enter the transfer portal",
-    "in the transfer portal",
     "has hit the transfer portal",
     "hit the transfer portal",
+    "in the transfer portal",
 ]
 
 MEDIUM_PORTAL_PHRASES = [
-    "enter the portal",
     "entered the portal",
+    "enter the portal",
     "in the portal",
     "hit the portal",
-    "testing the portal",
-    "testing transfer portal waters",
     "expected to enter the transfer portal",
     "expected to hit the portal",
+    "testing the transfer portal",
+    "testing portal waters",
+    "expected to transfer",
 ]
 
 BASKETBALL_HINTS = [
@@ -47,8 +48,8 @@ BASKETBALL_HINTS = [
 
 def score_tweet(tweet_text: str, author_username: str = "", author_name: str = ""):
     text = (tweet_text or "").lower()
-    username = (author_username or "").lower().strip("@")
-    name = (author_name or "").lower()
+    username = (author_username or "").lower().replace("@", "").strip()
+    author = (author_name or "").lower()
 
     score = 0
     reasons = []
@@ -69,7 +70,7 @@ def score_tweet(tweet_text: str, author_username: str = "", author_name: str = "
             reasons.append(f"medium_phrase:{phrase}")
             break
 
-    combined = f"{text} {name} {username}"
+    combined = f"{text} {author} {username}"
     if any(hint in combined for hint in BASKETBALL_HINTS):
         score += 1
         reasons.append("basketball_hint")
@@ -77,6 +78,11 @@ def score_tweet(tweet_text: str, author_username: str = "", author_name: str = "
     return score, reasons
 
 
-def is_likely_portal_tweet(tweet_text: str, author_username: str = "", author_name: str = "", min_score: int = 4):
+def is_likely_portal_tweet(
+    tweet_text: str,
+    author_username: str = "",
+    author_name: str = "",
+    min_score: int = 4,
+):
     score, reasons = score_tweet(tweet_text, author_username, author_name)
     return score >= min_score, score, reasons
