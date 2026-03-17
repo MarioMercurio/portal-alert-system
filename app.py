@@ -155,7 +155,7 @@ st.subheader("Live Twitter Monitor")
 
 if st.button("Run Live Monitor"):
     try:
-        alerts = process_tweets()
+        alerts, debug_log = process_tweets(debug=True)
 
         if not alerts:
             st.info("No qualifying portal alerts found.")
@@ -167,5 +167,20 @@ if st.button("Run Live Monitor"):
                 st.write(f"**Score:** {alert.get('score', '')}")
                 st.write(f"**Tweet:** {alert.get('text', '')}")
                 st.divider()
+
+        st.subheader("Debug Log")
+
+        if not debug_log:
+            st.write("No tweets returned from Twitter.")
+        else:
+            for item in debug_log:
+                st.write(f"**Tweet:** {item.get('text', '')}")
+                st.write(f"**Score:** {item.get('score', '')} | **Likely:** {item.get('likely', False)}")
+                st.write(f"**Player Detected:** {item.get('player_name', '')}")
+                st.write(f"**Player Found:** {item.get('player_found', False)}")
+                reasons = item.get("reasons", [])
+                st.write(f"**Reasons:** {', '.join(reasons) if reasons else 'None'}")
+                st.divider()
+
     except Exception as e:
         st.error(f"Live monitor failed: {e}")
