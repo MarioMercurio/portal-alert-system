@@ -12,15 +12,16 @@ PORTAL_PHRASES = [
     "in the transfer portal",
 ]
 
-IGNORE_WORDS = {
+# MUCH stronger filtering
+BAD_NAME_PARTS = {
     "southern", "northern", "eastern", "western",
     "mississippi", "texas", "florida", "california",
     "arizona", "ohio", "kansas", "georgia", "louisiana",
     "state", "university", "college", "academy", "school",
     "junior", "senior", "freshman", "sophomore",
     "guard", "forward", "center",
-    "source", "hearing", "report", "reported", "agent",
     "men", "mens", "basketball", "hoops",
+    "source", "hearing", "report", "reported", "agent"
 }
 
 FULL_NAME_PATTERN = r"\b[A-Z][a-zA-Z\.\-']+\s+[A-Z][a-zA-Z\.\-']+\b"
@@ -33,33 +34,28 @@ def _clean_text(text):
     return text
 
 
-def _is_bad_name(name):
-    if not name:
-        return True
-
+def _is_valid_player_name(name):
     parts = name.split()
     if len(parts) != 2:
-        return True
+        return False
 
-    lowered = [p.lower().strip(".,") for p in parts]
+    p1 = parts[0].lower().strip(".,")
+    p2 = parts[1].lower().strip(".,")
 
-    # Reject if either token is clearly a school/location/common descriptor
-    if lowered[0] in IGNORE_WORDS or lowered[1] in IGNORE_WORDS:
-        return True
+    # 🔴 HARD FILTER: reject anything with bad words
+    if p1 in BAD_NAME_PARTS or p2 in BAD_NAME_PARTS:
+        return False
 
-    return False
+    # 🔴 EXTRA PROTECTION: reject if BOTH words are common/location words
+    if p1 in BAD_NAME_PARTS and p2 in BAD_NAME_PARTS:
+        return False
+
+    return True
 
 
-def _extract_names_from_text(text):
-    candidates = re.findall(FULL_NAME_PATTERN, text)
-    cleaned = []
-
-    for name in candidates:
-        name = name.strip(" ,.-")
-        if not _is_bad_name(name):
-            cleaned.append(name)
-
-    return cleaned
+def _extract_names(text):
+    matches = re.findall(FULL_NAME_PATTERN, text)
+    return [m.strip(" ,.-") for m in matches if _is_valid_player_name(m)]
 
 
 def extract_player_name(tweet_text):
@@ -70,34 +66,32 @@ def extract_player_name(tweet_text):
 
     lower_text = text.lower()
 
-    # 1) Best method:
-    # Look immediately before the portal phrase and take the LAST valid full name.
+    # 🎯 STEP 1 — BEST METHOD:
+    # Find portal phrase → take LAST valid name BEFORE it
     for phrase in PORTAL_PHRASES:
         idx = lower_text.find(phrase)
         if idx != -1:
             prefix = text[:idx]
-            names_before_phrase = _extract_names_from_text(prefix)
+            names = _extract_names(prefix)
 
-            if names_before_phrase:
-                return names_before_phrase[-1]
+            if names:
+                return names[-1]
 
-    # 2) Source/hearing style tweets:
-    # "Source: Isaac Tavares intends to enter..."
-    source_patterns = [
-        r"source[:\s,-]+(?P<name>[A-Z][a-zA-Z\.\-']+\s+[A-Z][a-zA-Z\.\-']+)",
-        r"hearing[:\s,-]+(?P<name>[A-Z][a-zA-Z\.\-']+\s+[A-Z][a-zA-Z\.\-']+)",
+    # 🎯 STEP 2 — "Source:" or "Hearing:" format
+    patterns = [
+        r"source[:\s,-]+([A-Z][a-zA-Z\.\-']+\s+[A-Z][a-zA-Z\.\-']+)",
+        r"hearing[:\s,-]+([A-Z][a-zA-Z\.\-']+\s+[A-Z][a-zA-Z\.\-']+)",
     ]
 
-    for pattern in source_patterns:
+    for pattern in patterns:
         match = re.search(pattern, text, flags=re.IGNORECASE)
         if match:
-            name = match.group("name").strip(" ,.-")
-            if not _is_bad_name(name):
+            name = match.group(1).strip(" ,.-")
+            if _is_valid_player_name(name):
                 return name
 
-    # 3) Fallback:
-    # Use the last valid full name anywhere in the tweet.
-    all_names = _extract_names_from_text(text)
+    # 🎯 STEP 3 — fallback: last valid name anywhere
+    all_names = _extract_names(text)
     if all_names:
         return all_names[-1]
 
