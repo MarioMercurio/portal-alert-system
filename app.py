@@ -179,7 +179,7 @@ if AUTO_MODE:
 
     while True:
         try:
-            alerts, debug_log = process_tweets(debug=False)
+            alerts = process_tweets(debug=False)
 
             if alerts:
                 st.success(f"Sent {len(alerts)} alert(s)")
