@@ -79,7 +79,7 @@ def get_recent_tweets_for_user(user_id, max_results=10):
 
 def process_tweets(debug=False):
     df = load_superfile()
-    seen_ids = load_seen()
+    seen_data = load_seen()
 
     alerts_sent = []
     debug_log = []
@@ -102,17 +102,6 @@ def process_tweets(debug=False):
 
         user_id = lookup["user_id"]
 
-        debug_log.append({
-            "text": f"Lookup OK for @{username} → user_id={user_id}",
-            "score": 0,
-            "likely": False,
-            "player_name": "",
-            "player_found": False,
-            "reasons": ["lookup_ok"],
-            "api_status_code": 200,
-            "api_error_text": ""
-        })
-
         timeline = get_recent_tweets_for_user(user_id, max_results=10)
 
         if not timeline["ok"]:
@@ -130,29 +119,28 @@ def process_tweets(debug=False):
 
         tweets = timeline["tweets"]
 
-        debug_log.append({
-            "text": f"Fetched {len(tweets)} raw tweets for @{username}",
-            "score": 0,
-            "likely": False,
-            "player_name": "",
-            "player_found": False,
-            "reasons": ["timeline_ok"],
-            "api_status_code": 200,
-            "api_error_text": ""
-        })
-
         if not tweets:
+            debug_log.append({
+                "text": f"No tweets returned for @{username}",
+                "score": 0,
+                "likely": False,
+                "player_name": "",
+                "player_found": False,
+                "reasons": ["no_tweets_returned"],
+                "api_status_code": 200,
+                "api_error_text": ""
+            })
             continue
 
         for tweet in tweets:
-            tweet_id = str(tweet.get("id", ""))
+            tweet_id = str(tweet.get("id", "")).strip()
             text = tweet.get("text", "")
             lang = tweet.get("lang", "")
 
-            if not tweet_id:
+            if not tweet_id or not text:
                 continue
 
-            if not is_new_tweet(tweet_id, seen_ids):
+            if not is_new_tweet(tweet_id, text, seen_data):
                 debug_log.append({
                     "text": text,
                     "score": 0,
@@ -186,15 +174,19 @@ def process_tweets(debug=False):
             })
 
             if lang != "en":
+                mark_tweet_seen(tweet_id, text, seen_data)
                 continue
 
             if not likely:
+                mark_tweet_seen(tweet_id, text, seen_data)
                 continue
 
             if not player_name:
+                mark_tweet_seen(tweet_id, text, seen_data)
                 continue
 
             if player is None:
+                mark_tweet_seen(tweet_id, text, seen_data)
                 continue
 
             player_data = player.to_dict()
@@ -209,7 +201,7 @@ def process_tweets(debug=False):
             )
 
             send_email_alert(subject, body)
-            mark_tweet_seen(tweet_id, seen_ids)
+            mark_tweet_seen(tweet_id, text, seen_data)
 
             alerts_sent.append({
                 "player": player_data.get("Full Name", player_name),
