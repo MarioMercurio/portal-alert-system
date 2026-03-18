@@ -5,8 +5,13 @@ from superfile_loader import load_superfile, find_player
 from format_alert import format_portal_alert
 from email_sender import send_email_alert
 from portal_rules import is_likely_portal_tweet
-from deduper import load_seen, is_new_tweet, mark_tweet_seen
-
+from deduper import (
+    load_seen,
+    has_seen_tweet,
+    mark_tweet_seen,
+    has_seen_alert,
+    mark_alert_seen,
+)
 
 USER_LOOKUP_URL = "https://api.twitter.com/2/users/by/username/{username}"
 USER_TWEETS_URL = "https://api.twitter.com/2/users/{user_id}/tweets"
@@ -140,14 +145,14 @@ def process_tweets(debug=False):
             if not tweet_id or not text:
                 continue
 
-            if not is_new_tweet(tweet_id, text, seen_data):
+            if has_seen_tweet(tweet_id, text, seen_data):
                 debug_log.append({
                     "text": text,
                     "score": 0,
                     "likely": False,
                     "player_name": "",
                     "player_found": False,
-                    "reasons": ["duplicate_already_seen"],
+                    "reasons": ["duplicate_tweet_seen"],
                     "api_status_code": 200,
                     "api_error_text": ""
                 })
@@ -161,6 +166,11 @@ def process_tweets(debug=False):
 
             player_name = extract_player_name(text)
             player = find_player(df, player_name) if player_name else None
+            player_data = player.to_dict() if player is not None else None
+
+            school = ""
+            if player_data is not None:
+                school = player_data.get("2025-2026 School", "")
 
             debug_log.append({
                 "text": text,
@@ -189,11 +199,23 @@ def process_tweets(debug=False):
                 mark_tweet_seen(tweet_id, text, seen_data)
                 continue
 
-            player_data = player.to_dict()
+            if has_seen_alert(player_name, username, school, seen_data):
+                debug_log.append({
+                    "text": text,
+                    "score": score,
+                    "likely": likely,
+                    "player_name": player_name,
+                    "player_found": True,
+                    "reasons": ["duplicate_alert_seen_same_day"],
+                    "api_status_code": 200,
+                    "api_error_text": ""
+                })
+                mark_tweet_seen(tweet_id, text, seen_data)
+                continue
 
             subject, body = format_portal_alert(
                 player_name=player_data.get("Full Name", player_name),
-                school=player_data.get("2025-2026 School", ""),
+                school=school,
                 hdi=player_data.get("RATING", ""),
                 reporter=username,
                 tweet_url=f"https://x.com/{username}/status/{tweet_id}",
@@ -201,7 +223,9 @@ def process_tweets(debug=False):
             )
 
             send_email_alert(subject, body)
+
             mark_tweet_seen(tweet_id, text, seen_data)
+            mark_alert_seen(player_data.get("Full Name", player_name), username, school, seen_data)
 
             alerts_sent.append({
                 "player": player_data.get("Full Name", player_name),
