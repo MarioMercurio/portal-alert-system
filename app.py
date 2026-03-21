@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from datetime import datetime
 from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
 from sms_sender import send_sms
@@ -33,9 +34,6 @@ def row_to_dict(player):
 
 df = get_superfile()
 
-# -----------------------------
-# SAMPLE TWEET INPUT
-# -----------------------------
 st.subheader("Paste a sample portal tweet")
 
 sample_tweet = st.text_area(
@@ -57,9 +55,6 @@ author_name = st.text_input(
 
 st.divider()
 
-# -----------------------------
-# SCORING
-# -----------------------------
 st.subheader("Portal Tweet Score")
 
 if st.button("Score Tweet"):
@@ -79,9 +74,6 @@ if st.button("Score Tweet"):
 
 st.divider()
 
-# -----------------------------
-# PARSER + MATCH
-# -----------------------------
 st.subheader("Tweet Parser + Player Match")
 
 if st.button("Test Tweet Parser"):
@@ -110,9 +102,6 @@ if st.button("Test Tweet Parser"):
 
 st.divider()
 
-# -----------------------------
-# ALERT TESTS
-# -----------------------------
 st.subheader("Alert Tests")
 
 if st.button("Send Test SMS"):
@@ -165,28 +154,79 @@ if st.button("Send Test Email From Tweet"):
 
 st.divider()
 
-# -----------------------------
-# AUTO LIVE MONITOR (5 MIN)
-# -----------------------------
 st.subheader("Live Twitter Monitor")
+
+if st.button("Run Diagnostic Check Now"):
+    try:
+        alerts, debug_log = process_tweets(debug=True)
+
+        st.write(f"**Checked at:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        st.write(f"**Alerts sent this run:** {len(alerts)}")
+        st.write(f"**Debug items:** {len(debug_log)}")
+
+        if alerts:
+            st.success(f"Diagnostic run sent {len(alerts)} alert(s).")
+            for alert in alerts:
+                st.write(f"**Player:** {alert.get('player', '')}")
+                st.write(f"**Reporter:** {alert.get('reporter', '')}")
+                st.write(f"**Source:** {alert.get('source', '')}")
+                st.write(f"**Score:** {alert.get('score', '')}")
+                st.write(f"**Tweet:** {alert.get('text', '')}")
+                st.divider()
+        else:
+            st.info("Diagnostic run sent no alerts.")
+
+        st.subheader("Diagnostic Debug Log")
+
+        for item in debug_log[:100]:
+            st.write(f"**Source:** {item.get('source', '')}")
+            st.write(f"**Text:** {item.get('text', '')}")
+            st.write(f"**Score:** {item.get('score', '')}")
+            st.write(f"**Likely:** {item.get('likely', False)}")
+            st.write(f"**Player Detected:** {item.get('player_name', '')}")
+            st.write(f"**Player Found:** {item.get('player_found', False)}")
+            reasons = item.get("reasons", [])
+            st.write(f"**Reasons:** {', '.join(reasons) if reasons else 'None'}")
+
+            api_status_code = item.get("api_status_code", "")
+            api_error_text = item.get("api_error_text", "")
+
+            if api_status_code:
+                st.write(f"**API Status Code:** {api_status_code}")
+
+            if api_error_text:
+                st.code(api_error_text)
+
+            st.divider()
+
+    except Exception as e:
+        st.error(f"Diagnostic run failed: {e}")
 
 AUTO_MODE = st.checkbox("Enable Auto Monitor (runs every 5 minutes)", value=True)
 
-INTERVAL_SECONDS = 300  # 5 minutes
+INTERVAL_SECONDS = 300
 
 if AUTO_MODE:
     st.success("Auto monitor is running every 5 minutes...")
 
+    status_placeholder = st.empty()
+    detail_placeholder = st.empty()
+
     while True:
         try:
-            alerts = process_tweets(debug=False)
+            alerts, debug_log = process_tweets(debug=True)
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+            status_placeholder.info(
+                f"Checked at {now_str} | Alerts this run: {len(alerts)} | Debug items: {len(debug_log)}"
+            )
 
             if alerts:
-                st.success(f"Sent {len(alerts)} alert(s)")
+                detail_placeholder.success(f"Sent {len(alerts)} alert(s) on the last cycle.")
             else:
-                st.info("No new alerts")
+                detail_placeholder.write("No new alerts on the last cycle.")
 
         except Exception as e:
-            st.error(f"Monitor error: {e}")
+            status_placeholder.error(f"Monitor error: {e}")
 
         time.sleep(INTERVAL_SECONDS)
