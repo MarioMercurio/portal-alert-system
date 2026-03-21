@@ -273,7 +273,7 @@ def process_tweets(debug=False):
                 "likely": likely,
                 "player_name": full_name,
                 "player_found": True,
-                "reasons": ["duplicate_alert_seen_same_day"],
+                "reasons": ["duplicate_alert_seen_player_already_alerted"],
                 "api_status_code": 200,
                 "api_error_text": "",
                 "source": source
