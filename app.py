@@ -156,6 +156,9 @@ st.divider()
 
 st.subheader("Live Twitter Monitor")
 
+auto_mode = st.checkbox("Enable Auto Monitor (runs every 5 minutes)", value=False)
+INTERVAL_SECONDS = 300
+
 if st.button("Run Diagnostic Check Now"):
     try:
         alerts, debug_log = process_tweets(debug=True)
@@ -185,6 +188,7 @@ if st.button("Run Diagnostic Check Now"):
             st.write(f"**Likely:** {item.get('likely', False)}")
             st.write(f"**Player Detected:** {item.get('player_name', '')}")
             st.write(f"**Player Found:** {item.get('player_found', False)}")
+
             reasons = item.get("reasons", [])
             st.write(f"**Reasons:** {', '.join(reasons) if reasons else 'None'}")
 
@@ -202,12 +206,8 @@ if st.button("Run Diagnostic Check Now"):
     except Exception as e:
         st.error(f"Diagnostic run failed: {e}")
 
-AUTO_MODE = st.checkbox("Enable Auto Monitor (runs every 5 minutes)", value=True)
-
-INTERVAL_SECONDS = 300
-
-if AUTO_MODE:
-    st.success("Auto monitor is running every 5 minutes...")
+if auto_mode:
+    st.warning("Auto monitor is ON. This page will stay busy while it checks every 5 minutes.")
 
     status_placeholder = st.empty()
     detail_placeholder = st.empty()
