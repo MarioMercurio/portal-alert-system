@@ -1,5 +1,4 @@
 import streamlit as st
-import time
 from datetime import datetime
 from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
@@ -156,9 +155,6 @@ st.divider()
 
 st.subheader("Live Twitter Monitor")
 
-auto_mode = st.checkbox("Enable Auto Monitor (runs every 5 minutes)", value=False)
-INTERVAL_SECONDS = 300
-
 if st.button("Run Diagnostic Check Now"):
     try:
         alerts, debug_log = process_tweets(debug=True)
@@ -205,28 +201,3 @@ if st.button("Run Diagnostic Check Now"):
 
     except Exception as e:
         st.error(f"Diagnostic run failed: {e}")
-
-if auto_mode:
-    st.warning("Auto monitor is ON. This page will stay busy while it checks every 5 minutes.")
-
-    status_placeholder = st.empty()
-    detail_placeholder = st.empty()
-
-    while True:
-        try:
-            alerts, debug_log = process_tweets(debug=True)
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-            status_placeholder.info(
-                f"Checked at {now_str} | Alerts this run: {len(alerts)} | Debug items: {len(debug_log)}"
-            )
-
-            if alerts:
-                detail_placeholder.success(f"Sent {len(alerts)} alert(s) on the last cycle.")
-            else:
-                detail_placeholder.write("No new alerts on the last cycle.")
-
-        except Exception as e:
-            status_placeholder.error(f"Monitor error: {e}")
-
-        time.sleep(INTERVAL_SECONDS)
