@@ -1,36 +1,33 @@
 import streamlit as st
 from datetime import datetime
+import time
 
 st.set_page_config(page_title="Portal Alert System", page_icon="🚨")
 
-st.title("Step 2 - Runtime Test")
+st.title("Step 3 - Deep Debug")
 
-st.write("This page tests whether process_tweets() runs successfully.")
+st.write("This will show exactly where process_tweets is getting stuck.")
 st.write(f"Loaded at: {datetime.now()}")
 
-try:
-    from twitter_monitor import process_tweets
-    st.success("twitter_monitor imported successfully ✅")
-except Exception as e:
-    st.error(f"twitter_monitor FAILED to import ❌: {e}")
+from twitter_monitor import process_tweets
 
 if st.button("Run process_tweets(debug=True)"):
+
+    st.write("🚀 Starting process_tweets...")
+    start_time = time.time()
+
     try:
         alerts, debug_log = process_tweets(debug=True)
 
-        st.success("process_tweets(debug=True) ran successfully ✅")
-        st.write(f"Alerts returned: {len(alerts)}")
-        st.write(f"Debug items returned: {len(debug_log)}")
+        end_time = time.time()
+        st.success(f"✅ Finished in {round(end_time - start_time, 2)} seconds")
 
-        if alerts:
-            st.subheader("Alerts")
-            for alert in alerts[:10]:
-                st.write(alert)
+        st.write(f"Alerts: {len(alerts)}")
+        st.write(f"Debug log: {len(debug_log)}")
 
         if debug_log:
-            st.subheader("Debug Log")
-            for item in debug_log[:20]:
-                st.write(item)
+            st.subheader("First Debug Item")
+            st.write(debug_log[0])
 
     except Exception as e:
-        st.error(f"process_tweets(debug=True) FAILED ❌: {e}")
+        st.error(f"❌ ERROR: {e}")
