@@ -18,7 +18,6 @@ SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent"
 REQUEST_TIMEOUT = 12
 
 PORTAL_QUERY = (
-    '"transfer portal" OR '
     '"entered the transfer portal" OR '
     '"has entered the transfer portal" OR '
     '"plans to enter the transfer portal" OR '
@@ -26,13 +25,26 @@ PORTAL_QUERY = (
     '"is entering the transfer portal" OR '
     '"will enter the transfer portal" OR '
     '"expected to enter the transfer portal" OR '
-    '"entered the portal" OR '
-    '"in the transfer portal" OR '
+    '"has hit the transfer portal" OR '
     '"hit the transfer portal" OR '
-    '"enter the portal" OR '
-    '"testing the waters" OR '
+    '"entered the portal" OR '
+    '"plans to enter the portal" OR '
+    '"intends to enter the portal" OR '
+    '"will enter the portal" OR '
     '"testing the transfer portal"'
 )
+
+TRUSTED_ONLY_FOR_SEARCH = False
+
+TRUSTED_SEARCH_USERNAMES = {
+    "goodmanhoops",
+    "jeffborzello",
+    "tiptonedits",
+    "verbalcommits",
+    "on3sports",
+    "travisbranham_",
+    "247sportsportal",
+}
 
 
 def get_headers():
@@ -179,6 +191,21 @@ def process_tweets(debug=False):
         source = tweet.get("source", "search")
 
         if not tweet_id or not text:
+            continue
+
+        if TRUSTED_ONLY_FOR_SEARCH and username.lower() not in TRUSTED_SEARCH_USERNAMES:
+            debug_log.append({
+                "text": text,
+                "score": 0,
+                "likely": False,
+                "player_name": "",
+                "player_found": False,
+                "reasons": ["filtered_untrusted_search_author"],
+                "api_status_code": 200,
+                "api_error_text": "",
+                "source": source
+            })
+            mark_tweet_seen(tweet_id, text, seen_data)
             continue
 
         if has_seen_tweet(tweet_id, text, seen_data):
