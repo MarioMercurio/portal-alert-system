@@ -1,7 +1,6 @@
 import json
 import os
 import hashlib
-from datetime import datetime, timezone
 
 SEEN_FILE = "seen_tweets.json"
 
@@ -10,7 +9,7 @@ def _empty_store():
     return {
         "tweet_ids": [],
         "text_hashes": [],
-        "alert_keys": []
+        "alerts": {}
     }
 
 
@@ -29,19 +28,6 @@ def _normalize_name(value):
     return " ".join(value.split())
 
 
-def _today_key():
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-
-def build_alert_key(player_name, reporter, school=""):
-    player = _normalize_name(player_name)
-    reporter = _normalize_name(reporter)
-    school = _normalize_name(school)
-    day_key = _today_key()
-    raw = f"{player}|{reporter}|{school}|{day_key}"
-    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-
 def load_seen():
     if not os.path.exists(SEEN_FILE):
         return _empty_store()
@@ -56,7 +42,7 @@ def load_seen():
         return {
             "tweet_ids": data.get("tweet_ids", []),
             "text_hashes": data.get("text_hashes", []),
-            "alert_keys": data.get("alert_keys", [])
+            "alerts": data.get("alerts", {})
         }
     except Exception:
         return _empty_store()
@@ -94,14 +80,16 @@ def mark_tweet_seen(tweet_id, tweet_text, seen_data):
 
 
 def has_seen_alert(player_name, reporter, school, seen_data):
-    alert_key = build_alert_key(player_name, reporter, school)
-    return alert_key in seen_data["alert_keys"]
+    key = _normalize_name(player_name)
+    if not key:
+        return False
+    return key in seen_data["alerts"]
 
 
 def mark_alert_seen(player_name, reporter, school, seen_data):
-    alert_key = build_alert_key(player_name, reporter, school)
+    key = _normalize_name(player_name)
+    if not key:
+        return
 
-    if alert_key not in seen_data["alert_keys"]:
-        seen_data["alert_keys"].append(alert_key)
-
+    seen_data["alerts"][key] = True
     save_seen(seen_data)
