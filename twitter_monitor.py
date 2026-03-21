@@ -22,6 +22,9 @@ REPORTERS = [
     {"username": "TiptonEdits", "id": "145602194"},
     {"username": "VerbalCommits", "id": "362586870"},
     {"username": "On3sports", "id": "149871064"},
+    {"username": "247SportsPortal", "id": "1526305618643462144"},
+    {"username": "TravisBranham_", "id": "267090222"},
+    {"username": "portal_updates", "id": "1702483440417357824"},
 ]
 
 PORTAL_QUERY = (
@@ -32,9 +35,11 @@ PORTAL_QUERY = (
     '"intends to enter the transfer portal" OR '
     '"is entering the transfer portal" OR '
     '"will enter the transfer portal" OR '
+    '"expected to enter the transfer portal" OR '
     '"entered the portal" OR '
     '"in the transfer portal" OR '
-    '"hit the transfer portal"'
+    '"hit the transfer portal" OR '
+    '"enter the portal"'
 )
 
 
@@ -44,7 +49,7 @@ def get_headers():
     }
 
 
-def get_recent_tweets_for_user(user_id, max_results=10):
+def get_recent_tweets_for_user(user_id, max_results=25):
     url = USER_TWEETS_URL.format(user_id=user_id)
 
     params = {
@@ -72,7 +77,7 @@ def get_recent_tweets_for_user(user_id, max_results=10):
     }
 
 
-def search_portal_tweets(max_results=25):
+def search_portal_tweets(max_results=50):
     params = {
         "query": PORTAL_QUERY,
         "max_results": max_results,
@@ -132,7 +137,7 @@ def fetch_reporter_timeline_tweets():
         username = reporter["username"]
         user_id = reporter["id"]
 
-        result = get_recent_tweets_for_user(user_id, max_results=10)
+        result = get_recent_tweets_for_user(user_id, max_results=25)
 
         if not result["ok"]:
             debug_items.append({
@@ -149,20 +154,6 @@ def fetch_reporter_timeline_tweets():
             continue
 
         raw_tweets = result["tweets"]
-
-        if not raw_tweets:
-            debug_items.append({
-                "text": f"No tweets returned for @{username}",
-                "score": 0,
-                "likely": False,
-                "player_name": "",
-                "player_found": False,
-                "reasons": ["no_tweets_returned"],
-                "api_status_code": 200,
-                "api_error_text": "",
-                "source": "timeline"
-            })
-            continue
 
         debug_items.append({
             "text": f"Fetched {len(raw_tweets)} timeline tweets for @{username}",
@@ -190,7 +181,7 @@ def fetch_reporter_timeline_tweets():
 
 
 def fetch_search_tweets():
-    result = search_portal_tweets(max_results=25)
+    result = search_portal_tweets(max_results=50)
 
     if not result["ok"]:
         return [], [{
@@ -309,12 +300,14 @@ def process_tweets(debug=False):
             mark_tweet_seen(tweet_id, text, seen_data)
             continue
 
-        if has_seen_alert(player_data.get("Full Name", player_name), username, school, seen_data):
+        full_name = player_data.get("Full Name", player_name)
+
+        if has_seen_alert(full_name, username, school, seen_data):
             debug_log.append({
                 "text": text,
                 "score": score,
                 "likely": likely,
-                "player_name": player_name,
+                "player_name": full_name,
                 "player_found": True,
                 "reasons": ["duplicate_alert_seen_same_day"],
                 "api_status_code": 200,
@@ -325,7 +318,7 @@ def process_tweets(debug=False):
             continue
 
         subject, body = format_portal_alert(
-            player_name=player_data.get("Full Name", player_name),
+            player_name=full_name,
             school=school,
             hdi=player_data.get("RATING", ""),
             reporter=username,
@@ -336,10 +329,10 @@ def process_tweets(debug=False):
         send_email_alert(subject, body)
 
         mark_tweet_seen(tweet_id, text, seen_data)
-        mark_alert_seen(player_data.get("Full Name", player_name), username, school, seen_data)
+        mark_alert_seen(full_name, username, school, seen_data)
 
         alerts_sent.append({
-            "player": player_data.get("Full Name", player_name),
+            "player": full_name,
             "score": score,
             "text": text,
             "source": source,
