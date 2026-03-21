@@ -31,12 +31,6 @@ MEDIUM_PORTAL_PHRASES = [
     "testing the waters",
 ]
 
-WEAK_OR_NOISY_PHRASES = [
-    "in the transfer portal",
-    "transfer portal",
-    "portal",
-]
-
 NEGATIVE_PHRASES = [
     "wouldn't be surprised",
     "would not be surprised",
@@ -50,6 +44,9 @@ NEGATIVE_PHRASES = [
     "thank you for the season",
     "future of the program",
     "continue being competitive",
+    "transfer portal era",
+    "in the portal era",
+    "portal era",
 ]
 
 BASKETBALL_HINTS = [
@@ -112,7 +109,7 @@ def is_likely_portal_tweet(
     tweet_text: str,
     author_username: str = "",
     author_name: str = "",
-    min_score: int = 4,
+    min_score: int = 5,
 ):
     score, reasons = score_tweet(tweet_text, author_username, author_name)
     return score >= min_score, score, reasons
