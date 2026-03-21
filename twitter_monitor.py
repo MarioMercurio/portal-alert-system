@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+from requests.exceptions import RequestException, Timeout
 from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
 from format_alert import format_portal_alert
@@ -14,18 +15,7 @@ from deduper import (
 )
 
 SEARCH_URL = "https://api.twitter.com/2/tweets/search/recent"
-USER_TWEETS_URL = "https://api.twitter.com/2/users/{user_id}/tweets"
-
-REPORTERS = [
-    {"username": "GoodmanHoops", "id": "17330792"},
-    {"username": "jeffborzello", "id": "40235531"},
-    {"username": "TiptonEdits", "id": "145602194"},
-    {"username": "VerbalCommits", "id": "362586870"},
-    {"username": "On3sports", "id": "149871064"},
-    {"username": "247SportsPortal", "id": "1526305618643462144"},
-    {"username": "TravisBranham_", "id": "267090222"},
-    {"username": "portal_updates", "id": "1702483440417357824"},
-]
+REQUEST_TIMEOUT = 12
 
 PORTAL_QUERY = (
     '"transfer portal" OR '
@@ -39,7 +29,9 @@ PORTAL_QUERY = (
     '"entered the portal" OR '
     '"in the transfer portal" OR '
     '"hit the transfer portal" OR '
-    '"enter the portal"'
+    '"enter the portal" OR '
+    '"testing the waters" OR '
+    '"testing the transfer portal"'
 )
 
 
@@ -49,32 +41,31 @@ def get_headers():
     }
 
 
-def get_recent_tweets_for_user(user_id, max_results=25):
-    url = USER_TWEETS_URL.format(user_id=user_id)
-
-    params = {
-        "max_results": max_results,
-        "tweet.fields": "created_at,lang"
-    }
-
-    response = requests.get(url, headers=get_headers(), params=params)
-
-    if response.status_code != 200:
+def safe_get(url, params=None):
+    try:
+        response = requests.get(
+            url,
+            headers=get_headers(),
+            params=params,
+            timeout=REQUEST_TIMEOUT,
+        )
+        return {
+            "ok": True,
+            "response": response,
+            "error": "",
+        }
+    except Timeout:
         return {
             "ok": False,
-            "status_code": response.status_code,
-            "error_text": response.text,
-            "tweets": []
+            "response": None,
+            "error": f"request_timeout_{REQUEST_TIMEOUT}s",
         }
-
-    data = response.json()
-
-    return {
-        "ok": True,
-        "status_code": 200,
-        "error_text": "",
-        "tweets": data.get("data", [])
-    }
+    except RequestException as e:
+        return {
+            "ok": False,
+            "response": None,
+            "error": str(e),
+        }
 
 
 def search_portal_tweets(max_results=50):
@@ -86,7 +77,17 @@ def search_portal_tweets(max_results=50):
         "user.fields": "username,name"
     }
 
-    response = requests.get(SEARCH_URL, headers=get_headers(), params=params)
+    result = safe_get(SEARCH_URL, params=params)
+
+    if not result["ok"]:
+        return {
+            "ok": False,
+            "status_code": "network_error",
+            "error_text": result["error"],
+            "tweets": []
+        }
+
+    response = result["response"]
 
     if response.status_code != 200:
         return {
@@ -129,62 +130,17 @@ def search_portal_tweets(max_results=50):
     }
 
 
-def fetch_reporter_timeline_tweets():
-    collected = []
-    debug_items = []
+def process_tweets(debug=False):
+    df = load_superfile()
+    seen_data = load_seen()
 
-    for reporter in REPORTERS:
-        username = reporter["username"]
-        user_id = reporter["id"]
+    alerts_sent = []
+    debug_log = []
 
-        result = get_recent_tweets_for_user(user_id, max_results=25)
-
-        if not result["ok"]:
-            debug_items.append({
-                "text": f"Timeline failed for @{username}",
-                "score": 0,
-                "likely": False,
-                "player_name": "",
-                "player_found": False,
-                "reasons": [f"timeline_api_error_{result['status_code']}"],
-                "api_status_code": result["status_code"],
-                "api_error_text": result["error_text"],
-                "source": "timeline"
-            })
-            continue
-
-        raw_tweets = result["tweets"]
-
-        debug_items.append({
-            "text": f"Fetched {len(raw_tweets)} timeline tweets for @{username}",
-            "score": 0,
-            "likely": False,
-            "player_name": "",
-            "player_found": False,
-            "reasons": ["timeline_ok"],
-            "api_status_code": 200,
-            "api_error_text": "",
-            "source": "timeline"
-        })
-
-        for tweet in raw_tweets:
-            collected.append({
-                "id": str(tweet.get("id", "")).strip(),
-                "text": tweet.get("text", ""),
-                "lang": tweet.get("lang", ""),
-                "username": username,
-                "author_name": username,
-                "source": "timeline"
-            })
-
-    return collected, debug_items
-
-
-def fetch_search_tweets():
     result = search_portal_tweets(max_results=50)
 
     if not result["ok"]:
-        return [], [{
+        debug_log.append({
             "text": "Broad search failed",
             "score": 0,
             "likely": False,
@@ -194,11 +150,15 @@ def fetch_search_tweets():
             "api_status_code": result["status_code"],
             "api_error_text": result["error_text"],
             "source": "search"
-        }]
+        })
+
+        if debug:
+            return alerts_sent, debug_log
+        return alerts_sent
 
     tweets = result["tweets"]
 
-    debug_items = [{
+    debug_log.append({
         "text": f"Fetched {len(tweets)} search tweets",
         "score": 0,
         "likely": False,
@@ -208,38 +168,15 @@ def fetch_search_tweets():
         "api_status_code": 200,
         "api_error_text": "",
         "source": "search"
-    }]
+    })
 
-    return tweets, debug_items
-
-
-def process_tweets(debug=False):
-    df = load_superfile()
-    seen_data = load_seen()
-
-    alerts_sent = []
-    debug_log = []
-
-    timeline_tweets, timeline_debug = fetch_reporter_timeline_tweets()
-    search_tweets, search_debug = fetch_search_tweets()
-
-    debug_log.extend(timeline_debug)
-    debug_log.extend(search_debug)
-
-    all_candidates = timeline_tweets + search_tweets
-
-    if not all_candidates:
-        if debug:
-            return alerts_sent, debug_log
-        return alerts_sent
-
-    for tweet in all_candidates:
+    for tweet in tweets:
         tweet_id = str(tweet.get("id", "")).strip()
         text = tweet.get("text", "")
         lang = tweet.get("lang", "")
         username = tweet.get("username", "unknown")
         author_name = tweet.get("author_name", username)
-        source = tweet.get("source", "unknown")
+        source = tweet.get("source", "search")
 
         if not tweet_id or not text:
             continue
