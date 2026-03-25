@@ -1,5 +1,6 @@
 from twitter_monitor import process_tweets
 from email_sender import send_email_alert
+from format_alert import format_portal_alert
 
 
 def main():
@@ -12,16 +13,19 @@ def main():
         for alert in alerts:
             try:
                 player = alert.get("player", "Unknown Player")
-                text = alert.get("text", "")
+                school = alert.get("school", "")
+                hdi = alert.get("hdi", "")
                 reporter = alert.get("reporter", "unknown")
-                score = alert.get("score", "")
+                tweet_url = alert.get("tweet_url", "")
+                report_url = alert.get("report_url", "")
 
-                subject = f"Portal Alert: {player}"
-                body = (
-                    f"Player: {player}\n"
-                    f"Reporter: {reporter}\n"
-                    f"Score: {score}\n\n"
-                    f"Tweet:\n{text}"
+                subject, body = format_portal_alert(
+                    player_name=player,
+                    school=school,
+                    hdi=hdi,
+                    reporter=reporter,
+                    tweet_url=tweet_url,
+                    report_url=report_url,
                 )
 
                 print(f"Sending email for: {player}")
