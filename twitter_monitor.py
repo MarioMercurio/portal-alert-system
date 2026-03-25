@@ -1,4 +1,4 @@
-import streamlit as st
+import os
 import requests
 from requests.exceptions import RequestException, Timeout
 from tweet_parser import extract_player_name
@@ -48,8 +48,9 @@ TRUSTED_SEARCH_USERNAMES = {
 
 
 def get_headers():
+    token = os.getenv("X_BEARER_TOKEN")
     return {
-        "Authorization": f"Bearer {st.secrets['X_BEARER_TOKEN']}"
+        "Authorization": f"Bearer {token}"
     }
 
 
@@ -61,23 +62,11 @@ def safe_get(url, params=None):
             params=params,
             timeout=REQUEST_TIMEOUT,
         )
-        return {
-            "ok": True,
-            "response": response,
-            "error": "",
-        }
+        return {"ok": True, "response": response, "error": ""}
     except Timeout:
-        return {
-            "ok": False,
-            "response": None,
-            "error": f"request_timeout_{REQUEST_TIMEOUT}s",
-        }
+        return {"ok": False, "response": None, "error": "timeout"}
     except RequestException as e:
-        return {
-            "ok": False,
-            "response": None,
-            "error": str(e),
-        }
+        return {"ok": False, "response": None, "error": str(e)}
 
 
 def search_portal_tweets(max_results=50):
