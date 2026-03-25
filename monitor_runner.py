@@ -1,4 +1,4 @@
-from email_sender import send_email
+from email_sender import send_email_alert
 
 alerts = process_tweets()
 
