@@ -3,8 +3,6 @@ import requests
 from requests.exceptions import RequestException, Timeout
 from tweet_parser import extract_player_name
 from superfile_loader import load_superfile, find_player
-from format_alert import format_portal_alert
-from email_sender import send_email_alert
 from portal_rules import is_likely_portal_tweet
 from deduper import (
     load_seen,
@@ -75,7 +73,7 @@ def search_portal_tweets(max_results=50):
         "max_results": max_results,
         "tweet.fields": "author_id,created_at,lang",
         "expansions": "author_id",
-        "user.fields": "username,name"
+        "user.fields": "username,name",
     }
 
     result = safe_get(SEARCH_URL, params=params)
@@ -85,7 +83,7 @@ def search_portal_tweets(max_results=50):
             "ok": False,
             "status_code": "network_error",
             "error_text": result["error"],
-            "tweets": []
+            "tweets": [],
         }
 
     response = result["response"]
@@ -95,7 +93,7 @@ def search_portal_tweets(max_results=50):
             "ok": False,
             "status_code": response.status_code,
             "error_text": response.text,
-            "tweets": []
+            "tweets": [],
         }
 
     data = response.json()
@@ -106,7 +104,7 @@ def search_portal_tweets(max_results=50):
     for user in users:
         user_map[user.get("id", "")] = {
             "username": user.get("username", "unknown"),
-            "name": user.get("name", "")
+            "name": user.get("name", ""),
         }
 
     enriched = []
@@ -120,14 +118,14 @@ def search_portal_tweets(max_results=50):
             "lang": tweet.get("lang", ""),
             "username": author.get("username", "unknown"),
             "author_name": author.get("name", ""),
-            "source": "search"
+            "source": "search",
         })
 
     return {
         "ok": True,
         "status_code": 200,
         "error_text": "",
-        "tweets": enriched
+        "tweets": enriched,
     }
 
 
@@ -150,7 +148,7 @@ def process_tweets(debug=False):
             "reasons": [f"search_api_error_{result['status_code']}"],
             "api_status_code": result["status_code"],
             "api_error_text": result["error_text"],
-            "source": "search"
+            "source": "search",
         })
 
         if debug:
@@ -168,7 +166,7 @@ def process_tweets(debug=False):
         "reasons": ["search_ok"],
         "api_status_code": 200,
         "api_error_text": "",
-        "source": "search"
+        "source": "search",
     })
 
     for tweet in tweets:
@@ -192,7 +190,7 @@ def process_tweets(debug=False):
                 "reasons": ["filtered_untrusted_search_author"],
                 "api_status_code": 200,
                 "api_error_text": "",
-                "source": source
+                "source": source,
             })
             mark_tweet_seen(tweet_id, text, seen_data)
             continue
@@ -207,14 +205,14 @@ def process_tweets(debug=False):
                 "reasons": ["duplicate_tweet_seen"],
                 "api_status_code": 200,
                 "api_error_text": "",
-                "source": source
+                "source": source,
             })
             continue
 
         likely, score, reasons = is_likely_portal_tweet(
             tweet_text=text,
             author_username=username,
-            author_name=author_name
+            author_name=author_name,
         )
 
         player_name = extract_player_name(text)
@@ -222,8 +220,10 @@ def process_tweets(debug=False):
         player_data = player.to_dict() if player is not None else None
 
         school = ""
+        hdi = ""
         if player_data is not None:
-            school = player_data.get("2025-2026 School", "")
+            school = player_data.get("2025-2026 School", "") or player_data.get("School", "")
+            hdi = player_data.get("RATING", "") or player_data.get("HDI", "")
 
         debug_log.append({
             "text": text,
@@ -234,7 +234,7 @@ def process_tweets(debug=False):
             "reasons": reasons + ([f"lang_{lang}"] if lang else []),
             "api_status_code": 200,
             "api_error_text": "",
-            "source": source
+            "source": source,
         })
 
         if lang and lang != "en":
@@ -265,32 +265,27 @@ def process_tweets(debug=False):
                 "reasons": ["duplicate_alert_seen_player_already_alerted"],
                 "api_status_code": 200,
                 "api_error_text": "",
-                "source": source
+                "source": source,
             })
             mark_tweet_seen(tweet_id, text, seen_data)
             continue
 
-        subject, body = format_portal_alert(
-            player_name=full_name,
-            school=school,
-            hdi=player_data.get("RATING", ""),
-            reporter=username,
-            tweet_url=f"https://x.com/{username}/status/{tweet_id}",
-            report_url="https://portalapp.com/reports/example.png"
-        )
-
-        send_email_alert(subject, body)
-
-        mark_tweet_seen(tweet_id, text, seen_data)
-        mark_alert_seen(full_name, username, school, seen_data)
+        tweet_url = f"https://x.com/{username}/status/{tweet_id}"
 
         alerts_sent.append({
             "player": full_name,
+            "school": school,
+            "hdi": hdi,
             "score": score,
             "text": text,
             "source": source,
-            "reporter": username
+            "reporter": username,
+            "tweet_url": tweet_url,
+            "report_url": "https://portalapp.com/reports/example.png",
         })
+
+        mark_tweet_seen(tweet_id, text, seen_data)
+        mark_alert_seen(full_name, username, school, seen_data)
 
     if debug:
         return alerts_sent, debug_log
