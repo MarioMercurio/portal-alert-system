@@ -1,11 +1,25 @@
-from twitter_monitor import process_tweets
+from email_sender import send_email
 
-def main():
+alerts = process_tweets()
+
+print(f"Alerts found: {len(alerts)}")
+
+sent_count = 0
+
+for alert in alerts:
     try:
-        alerts = process_tweets(debug=False)
-        print(f"Run complete. Alerts sent: {len(alerts)}")
-    except Exception as e:
-        print(f"ERROR: {e}")
+        print(f"Sending email for: {alert['player']}")
 
-if __name__ == "__main__":
-    main()
+        send_email(
+            subject=f"Portal Alert: {alert['player']}",
+            body=alert["text"],
+            to_email=EMAIL_USER  # send to yourself for now
+        )
+
+        print("Email sent successfully")
+        sent_count += 1
+
+    except Exception as e:
+        print(f"Email failed: {e}")
+
+print(f"Run complete. Alerts sent: {sent_count}")
